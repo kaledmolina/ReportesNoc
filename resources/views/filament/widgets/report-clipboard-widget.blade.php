@@ -6,7 +6,6 @@
                 copyToClipboard() {
                     navigator.clipboard.writeText(this.text).then(() => {
                         this.copied = true;
-                        // Usamos la notificación nativa de Filament
                         new FilamentNotification()
                             .title('¡Reporte copiado!')
                             .success()
@@ -26,14 +25,19 @@
                     <h2 class="text-lg font-bold text-gray-800 dark:text-white">Generar Texto para WhatsApp</h2>
                 </div>
                 <p class="text-sm text-gray-500">
-                    Este botón formatea el último reporte (de hace {{ $lastUpdate }}) listo para enviar.
+                    @if($lastUpdate)
+                        Este botón formatea el último reporte (de hace {{ $lastUpdate }}) listo para enviar.
+                    @else
+                        No hay reportes recientes para copiar.
+                    @endif
                 </p>
             </div>
 
             {{-- Botón de Acción --}}
             <button 
                 @click="copyToClipboard()"
-                :class="copied ? 'bg-green-600 hover:bg-green-700' : 'bg-primary-600 hover:bg-primary-700'"
+                :disabled="!text || text === 'No hay reportes registrados.'"
+                :class="copied ? 'bg-green-600 hover:bg-green-700' : 'bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed'"
                 class="w-full md:w-auto inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-200"
             >
                 <span x-show="!copied" class="flex items-center">

@@ -3,103 +3,183 @@
 namespace App\Filament\Widgets;
 
 use App\Models\Report;
+use App\Helpers\CanalesHelper; 
 use Filament\Widgets\Widget;
 use Carbon\Carbon;
 
 class ReportClipboardWidget extends Widget
 {
     protected static string $view = 'filament.widgets.report-clipboard-widget';
-    
-    // Lo ponemos arriba del todo para que sea fácil de acceder
     protected int | string | array $columnSpan = 'full';
-    protected static ?int $sort = 1; 
+    protected static ?int $sort = 6; 
 
     public function getViewData(): array
     {
         $report = Report::with('incidents')->latest('created_at')->first();
         
         if (!$report) {
-            return ['reportText' => 'No hay reportes registrados.'];
+            return [
+                'reportText' => 'No hay reportes registrados.',
+                'lastUpdate' => null,
+            ];
         }
 
-        // --- CONSTRUCCIÓN DEL FORMATO DE WHATSAPP ---
         Carbon::setLocale('es');
-        
-        // Mapeo de turno a texto ordinal
-        $turnoTexto = match($report->turno) {
-            'mañana' => 'primer',
-            'tarde' => 'segundo',
-            'noche' => 'tercer',
-            default => $report->turno
+        $turnoTexto = match($report->turno) { 
+            'mañana' => 'primer', 
+            'tarde' => 'segundo', 
+            'noche' => 'tercer', 
+            default => $report->turno 
         };
 
-        // Cabecera
+        $listaCanales = CanalesHelper::getLista();
+
         $text = "Centro de Operaciones de Red – {$turnoTexto} informe Diario\n";
-        $text .= "Fecha: " . Carbon::parse($report->fecha)->translatedFormat('d \d\e F') . "\n";
+        
+        $fecha = Carbon::parse($report->fecha)->translatedFormat('d \d\e F');
+        $hora = $report->created_at->format('h:i A'); 
+        $text .= "Fecha: {$fecha} - {$hora}\n";
+        
         $text .= "Ciudad: {$report->ciudad}\n\n";
 
-        // Puntos 1, 2, 3
-        $concentradoresIcon = $report->concentradores_ok ? '✅' : '❌ REVISAR';
-        $text .= "1️⃣Concentradores en optimo  Funcionamiento  {$concentradoresIcon}\n";
-        
-        $proveedoresTexto = $report->proveedores_ok ? 'enlazados correctamente' : 'con intermitencia ⚠️';
-        $text .= "2️⃣Proveedores {$proveedoresTexto}\n";
-        
-        $text .= "3️⃣OLT Monteria:{$report->temp_olt_monteria}°\n";
-        $text .= "OLT Montería Backup:{$report->temp_olt_backup}°\n";
+        $i = 1;
 
-        // Punto 4: TV
-        $text .= "4️⃣Televisión:\n";
+        // 1. CONCENTRADORES
+        $concentradores = $report->lista_concentradores ?? [];
+        $optimos = [];
+        $fallas = [];
+
+        if (empty($concentradores)) {
+             $concStatus = $report->concentradores_ok ? 'en optimo Funcionamiento ✅' : 'con novedades ⚠️';
+             $text .= "{$i}️⃣Concentradores {$concStatus}\n";
+             $i++;
+        } else {
+            foreach ($concentradores as $c) {
+                $nombreCorto = str_replace('Concentrador ', '', $c['nombre']);
+                if ($c['estado']) { $optimos[] = $nombreCorto; } else { $fallas[] = $c; }
+            }
+
+            if (!empty($optimos)) {
+                $listaOptimos = implode(',', $optimos);
+                $text .= "{$i}️⃣Concentradores {$listaOptimos} en optimo Funcionamiento ✅\n";
+                $i++;
+            }
+
+            foreach ($fallas as $falla) {
+                $detalle = $falla['detalle'] ? $falla['detalle'] : 'presentando fallas';
+                $text .= "{$i}️⃣{$falla['nombre']} {$detalle} ⚠️\n";
+                $i++;
+            }
+        }
+
+        // 2. PROVEEDORES
+        $proveedores = $report->lista_proveedores ?? [];
+        if (empty($proveedores)) {
+             $provStatus = $report->proveedores_ok ? 'enlazados correctamente' : 'con fallas';
+             $text .= "{$i}️⃣Proveedores {$provStatus}\n";
+             $i++;
+        } else {
+            $todosOk = true;
+            foreach($proveedores as $p) {
+                if (!$p['estado']) {
+                    $todosOk = false;
+                    $detalle = $p['detalle'] ? $p['detalle'] : 'no enlazado'; 
+                    $text .= "{$i}️⃣{$p['nombre']} {$detalle} ⚠️\n";
+                    $i++;
+                }
+            }
+            if ($todosOk) {
+                $text .= "{$i}️⃣Proveedores enlazados correctamente ✅\n";
+                $i++;
+            }
+        }
+
+        // 3. SERVIDORES
+        $servidores = $report->lista_servidores ?? [];
+        $servidoresConFalla = [];
+        
+        foreach ($servidores as $s) {
+            if (!$s['estado']) {
+                $servidoresConFalla[] = $s;
+            }
+        }
+
+        if (empty($servidoresConFalla)) {
+            $text .= "{$i}️⃣Servidores y Energía: Operativos ✅\n";
+        } else {
+            $text .= "{$i}️⃣Servidores con Novedad ⚠️:\n";
+            foreach ($servidoresConFalla as $sf) {
+                $det = $sf['detalle'] ? $sf['detalle'] : 'Falla reportada';
+                $text .= "   - {$sf['nombre']}: {$det}\n";
+            }
+        }
+        $i++;
+
+        // 4. OLTs
+        $text .= "{$i}️⃣OLT Monteria: {$report->temp_olt_monteria}°\n";
+        $text .= "OLT Montería Backup: {$report->temp_olt_backup}°\n";
+        $i++;
+
+        // 5. TELEVISIÓN
+        $text .= "{$i}️⃣Televisión:\n";
         
         if (!empty($report->tv_canales_offline)) {
             $text .= "Canales sin señal:\n";
             foreach($report->tv_canales_offline as $canal) {
-                $text .= "{$canal}\n";
+                $nombreCompleto = $listaCanales[$canal] ?? $canal;
+                $text .= "- {$nombreCompleto}\n"; 
             }
             $text .= "\n";
         }
 
-        // Disponibilidad
+        if ($report->tv_observaciones) { 
+            $text .= "Nota TV: {$report->tv_observaciones}\n\n"; 
+        }
+
         $checkTv = ($report->tv_canales_activos == $report->tv_canales_total) ? '✅' : '⚠️';
         $text .= "{$report->tv_canales_activos} Canales funcionando de {$report->tv_canales_total} {$checkTv}\n\n";
 
-        // Intalflix
-        $intalflixStatus = $report->intalflix_online ? 'en linea ✅' : 'fuera de servicio ❌';
-        $text .= "Intalflix: {$intalflixStatus}\n\n";
+        // SE ELIMINÓ EL BLOQUE INTALFLIX (Ya incluido en Servidores)
 
-        // Novedades
-        $text .= "Novedades:\n";
-        
-        // Si hay resumen general, lo ponemos
-        if ($report->observaciones_generales) {
-            $text .= "{$report->observaciones_generales}\n\n";
-        }
+        // NOVEDADES
+        $text .= "NOVEDADES:\n";
+        if ($report->observaciones_generales) { $text .= "{$report->observaciones_generales}\n\n"; }
+        if ($report->novedades_servidores) { $text .= "Infraestructura: {$report->novedades_servidores}\n\n"; }
 
-        // Si hay novedades de servidores
-        if ($report->novedades_servidores) {
-             $text .= "Servidores: {$report->novedades_servidores}\n\n";
-        }
-
-        // Listado de incidentes detallados
         foreach($report->incidents as $incident) {
-            $estadoIcon = match($incident->estado) {
-                'resuelto' => '✅',
-                'en_proceso' => '🟠',
-                default => '🔴'
-            };
+            $icon = match($incident->estado) { 'resuelto' => '✅', 'en_proceso' => '🟠', default => '🔴' };
 
-            $text .= "{$incident->identificador} ({$incident->barrios}) {$estadoIcon}\n";
-            if ($incident->descripcion) {
-                $text .= "{$incident->descripcion}\n";
+            if ($incident->tipo_falla === 'falla_olt') {
+                $titulo = "Falla OLT {$incident->olt_nombre}";
+                $detalleTecnico = "";
+                if (!empty($incident->olt_afectacion)) {
+                    $partes = [];
+                    foreach($incident->olt_afectacion as $afec) {
+                        $puertos = implode(',', $afec['puertos']);
+                        $partes[] = "Tarjeta {$afec['tarjeta']} (Ptos: {$puertos})";
+                    }
+                    $detalleTecnico = implode(' | ', $partes);
+                }
+                $text .= "{$titulo} - {$detalleTecnico} {$icon}\n";
+
+            } elseif ($incident->tipo_falla === 'falla_tv') {
+                $canalesAfectados = collect($incident->tv_canales_afectados ?? [])
+                    ->map(fn($c) => $listaCanales[$c] ?? $c)
+                    ->implode(', ');
+                
+                $text .= "Falla Servidor TV (Afectando: {$canalesAfectados}) {$icon}\n";
+
+            } else {
+                $text .= "{$incident->identificador} {$icon}\n";
             }
-            if ($incident->usuarios_afectados) {
-                $text .= "Afectando aprox {$incident->usuarios_afectados} usuarios.\n";
-            }
+
+            if ($incident->barrios) { $text .= "Sector: {$incident->barrios}\n"; }
+            if ($incident->descripcion) { $text .= "Detalle: {$incident->descripcion}\n"; }
             $text .= "\n";
         }
 
-        if ($report->incidents->isEmpty() && empty($report->observaciones_generales)) {
-            $text .= "Sin novedades reportadas.\n";
+        if ($report->incidents->isEmpty() && empty($report->observaciones_generales) && empty($report->novedades_servidores)) {
+            $text .= "Sin novedades adicionales reportadas.\n";
         }
 
         return [

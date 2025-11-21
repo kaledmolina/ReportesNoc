@@ -7,28 +7,24 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Report extends Model
 {
-    // Permitir guardar todos los campos definidos en la migración
     protected $guarded = [];
 
-    // Casteos automáticos: Convierte datos de BD a tipos PHP útiles
     protected $casts = [
         'fecha' => 'date',
-        'tv_canales_offline' => 'array', // Convierte el JSON a Array automáticamente
+        'tv_canales_offline' => 'array',
         'concentradores_ok' => 'boolean',
         'proveedores_ok' => 'boolean',
-        'intalflix_online' => 'boolean',
+        // 'intalflix_online' => 'boolean',  <-- ELIMINADO
+        'lista_concentradores' => 'array',
+        'lista_proveedores' => 'array',
+        'olt_monteria_detalle' => 'array', 
+        'olt_backup_detalle' => 'array',
+        // --- NUEVO CAMPO ---
+        'lista_servidores' => 'array', 
     ];
 
-    // Relación: Un reporte tiene muchos incidentes
     public function incidents(): HasMany
     {
         return $this->hasMany(Incident::class);
-    }
-    
-    // Helper: Calcula el porcentaje de canales activos automáticamente
-    public function getPorcentajeTvAttribute()
-    {
-        if ($this->tv_canales_total == 0) return 0;
-        return round(($this->tv_canales_activos / $this->tv_canales_total) * 100, 1);
     }
 }
