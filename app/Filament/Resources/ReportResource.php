@@ -532,8 +532,11 @@ class ReportResource extends Resource
                             ->itemLabel(fn (array $state): ?string => $state['identificador'] ?? ($state['tipo_falla'] ?? 'Incidente'))
                             ->schema([
                                 Forms\Components\Select::make('tipo_falla')->options([
-                                    'falla_olt' => '📡 Falla en OLT', 'falla_tv' => '📺 Falla TV', 'fibra' => '✂️ Fibra',
-                                    'energia' => '⚡ Energía', 'equipo_alarmado' => '🚨 Equipo', 'mantenimiento' => '🛠️ Mant.',
+                                    'falla_olt' => '📡 Falla en OLT', 'falla_tv' => '📺 Falla TV',/* 'fibra' => '✂️ Fibra',
+                                    'energia' => '⚡ Energía', 
+                                    'equipo_alarmado' => '🚨 Equipo', 
+                                    'mantenimiento' => '🛠️ Mant.', 
+                                    */
                                 ])->required()->live()->afterStateUpdated(fn (Forms\Set $set) => $set('identificador', null))->columnSpanFull(),
                                 
                                 Forms\Components\Group::make()->visible(fn (Forms\Get $get) => $get('tipo_falla') === 'falla_olt')->schema([
