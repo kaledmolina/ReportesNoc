@@ -49,10 +49,21 @@ class ActiveTicketsWidget extends BaseWidget
                     ->label('Equipo / Afectación')
                     ->weight('bold')
                     ->state(function (Incident $record) {
-                        if ($record->tipo_falla === 'falla_olt') return "OLT {$record->olt_nombre}";
+                        // Lógica Visual para la Tabla
+                        if ($record->tipo_falla === 'falla_olt') {
+                            if (is_array($record->olt_afectacion)) {
+                                $countTarjetas = count($record->olt_afectacion);
+                                return "OLT {$record->olt_nombre} ({$countTarjetas} Tarjetas)";
+                            }
+                            return "OLT {$record->olt_nombre}";
+                        }
+                        if ($record->tipo_falla === 'falla_tv') {
+                            $count = count($record->tv_canales_afectados ?? []);
+                            return "Servidor TV ({$count} canales)";
+                        }
                         return $record->identificador;
                     })
-                    ->description(fn (Incident $record) => $record->barrios),
+                    ->description(fn (Incident $record) => $record->identificador),
 
                 Tables\Columns\TextColumn::make('estado')
                     ->badge()
