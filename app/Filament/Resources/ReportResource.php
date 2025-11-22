@@ -126,6 +126,7 @@ class ReportResource extends Resource
                                     
                                     Forms\Components\Repeater::make('olt_monteria_detalle')
                                         ->label('Detalle Tarjetas')
+                                        ->defaultItems(0)
                                         ->addActionLabel('Agregar Tarjeta')
                                         ->schema([
                                             Forms\Components\Grid::make(12)->schema([
@@ -303,6 +304,7 @@ class ReportResource extends Resource
                                     
                                     Forms\Components\Repeater::make('olt_backup_detalle')
                                         ->label('Detalle Tarjetas')
+                                        ->defaultItems(0)
                                         ->addActionLabel('Agregar Tarjeta')
                                         ->schema([
                                             Forms\Components\Grid::make(12)->schema([
@@ -525,6 +527,7 @@ class ReportResource extends Resource
                         Forms\Components\Repeater::make('incidents')
                             ->relationship()
                             ->label('Listado de Incidentes')
+                            ->defaultItems(0)
                             ->collapsible()
                             ->itemLabel(fn (array $state): ?string => $state['identificador'] ?? ($state['tipo_falla'] ?? 'Incidente'))
                             ->schema([
