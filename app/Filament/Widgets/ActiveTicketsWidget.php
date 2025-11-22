@@ -3,6 +3,7 @@
 namespace App\Filament\Widgets;
 
 use App\Models\Incident;
+use App\Filament\Resources\IncidentResource; // Importamos el Recurso para usar su formulario
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget as BaseWidget;
@@ -10,7 +11,7 @@ use Filament\Notifications\Notification;
 
 class ActiveTicketsWidget extends BaseWidget
 {
-    protected static ?int $sort = 2; 
+    protected static ?int $sort = 3; 
     protected int | string | array $columnSpan = 'full'; 
     protected static ?string $heading = '🚨 Seguimiento de Incidentes Activos';
 
@@ -101,10 +102,15 @@ class ActiveTicketsWidget extends BaseWidget
                         Notification::make()->title('Incidente Solucionado')->success()->send();
                     }),
                 
-                // ACCIÓN EXTRA: EDITAR (Por si hay que corregir algo escrito)
-                Tables\Actions\EditAction::make()
+                // ACCIÓN 3: VER DETALLE (OJO)
+                // Usamos el formulario del recurso IncidentResource para mostrar todos los campos
+                Tables\Actions\ViewAction::make()
+                    ->label('Ver Detalle')
+                    ->icon('heroicon-m-eye')
                     ->iconButton()
-                    ->color('gray'),
+                    ->color('gray')
+                    ->modalHeading('Detalle del Incidente')
+                    ->form(fn ($form) => IncidentResource::form($form)),
             ]);
     }
 }
