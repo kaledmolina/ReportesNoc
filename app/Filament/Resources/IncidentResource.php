@@ -42,10 +42,11 @@ class IncidentResource extends Resource
                             ->options([
                                 'falla_olt' => '📡 Falla en OLT (Múltiples Tarjetas)',
                                 'falla_tv' => '📺 Servidor de TV / Canales',
-                                'fibra' => '✂️ Corte de Fibra',
-                                'energia' => '⚡ Falla Energía',
-                                'equipo_alarmado' => '🚨 Equipo Alarmado (Genérico)',
-                                'mantenimiento' => '🛠️ Mantenimiento',
+                                /* 'fibra' => '✂️ Fibra',
+                                'energia' => '⚡ Energía', 
+                                'equipo_alarmado' => '🚨 Equipo', 
+                                'mantenimiento' => '🛠️ Mant.', 
+                                */
                             ])
                             ->required()
                             ->live()
