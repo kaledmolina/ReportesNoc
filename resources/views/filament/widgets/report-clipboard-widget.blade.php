@@ -1,21 +1,58 @@
 <x-filament::widget>
     <x-filament::card>
-        <div x-data="{ 
-                text: @js($reportText),
-                copied: false,
-                copyToClipboard() {
-                    navigator.clipboard.writeText(this.text).then(() => {
-                        this.copied = true;
-                        new FilamentNotification()
-                            .title('¡Reporte copiado!')
-                            .success()
-                            .send();
-                        
-                        setTimeout(() => this.copied = false, 3000);
-                    });
-                }
-            }" 
-            class="flex flex-col md:flex-row items-center justify-between gap-4"
+    <div x-data="{ 
+    text: @js($reportText),
+    copied: false,
+    copyToClipboard() {
+        // Intento 1: API Moderna (HTTPS)
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(this.text).then(() => {
+                this.showSuccess();
+            }).catch(() => {
+                this.fallbackCopy();
+            });
+        } else {
+            // Intento 2: Método antiguo (HTTP / IP Local)
+            this.fallbackCopy();
+        }
+    },
+    fallbackCopy() {
+        const textArea = document.createElement('textarea');
+        textArea.value = this.text;
+        
+        // Aseguramos que el textarea no sea visible pero sea parte del DOM
+        textArea.style.top = '0';
+        textArea.style.left = '0';
+        textArea.style.position = 'fixed';
+
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+
+        try {
+            var successful = document.execCommand('copy');
+            if(successful) {
+                this.showSuccess();
+            } else {
+                console.error('Fallo al copiar texto');
+            }
+        } catch (err) {
+            console.error('Error al copiar', err);
+        }
+
+        document.body.removeChild(textArea);
+    },
+    showSuccess() {
+        this.copied = true;
+        new FilamentNotification()
+            .title('¡Reporte copiado!')
+            .success()
+            .send();
+        
+        setTimeout(() => this.copied = false, 3000);
+    }
+}" 
+class="flex flex-col md:flex-row items-center justify-between gap-4"
         >
             
             {{-- Texto Informativo --}}
