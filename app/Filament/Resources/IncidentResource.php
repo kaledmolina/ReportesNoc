@@ -11,6 +11,7 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Validation\Rule;
 
 class IncidentResource extends Resource
@@ -28,33 +29,130 @@ class IncidentResource extends Resource
                 Forms\Components\Section::make('Detalles del Incidente')
                     ->description('Selecciona el tipo de falla para ver los campos específicos.')
                     ->schema([
-                        // 1. VINCULACIÓN
+                        // 1. SELECCIÓN DE CIUDAD (Virtual)
+                        Forms\Components\Select::make('ciudad_selector')
+                            ->label('Ciudad / Sede')
+                            ->options([
+                                'monteria' => 'Montería',
+                                'puerto_libertador' => 'Puerto Libertador',
+                                'regional' => 'Sedes Regionales (Valencia, Tierralta, San Pedro)',
+                            ])
+                            ->default('monteria')
+                            ->live()
+                            ->dehydrated(false) 
+                            ->afterStateHydrated(function (Forms\Components\Select $component, ?Incident $record) {
+                                if ($record) {
+                                    if ($record->report_puerto_libertador_id) {
+                                        $component->state('puerto_libertador');
+                                    } elseif ($record->report_regional_id) {
+                                        $component->state('regional');
+                                    } else {
+                                        $component->state('monteria');
+                                    }
+                                }
+                            })
+                            ->afterStateUpdated(function (Forms\Set $set, Forms\Get $get) {
+                                $set('report_id', null);
+                                $set('report_puerto_libertador_id', null);
+                                $set('report_regional_id', null);
+                                
+                                if ($get('ciudad_selector') === 'monteria') {
+                                    $latest = Report::latest()->first();
+                                    if ($latest) $set('report_id', $latest->id);
+                                } elseif ($get('ciudad_selector') === 'puerto_libertador') {
+                                    $latest = \App\Models\ReportPuertoLibertador::latest()->first();
+                                    if ($latest) $set('report_puerto_libertador_id', $latest->id);
+                                } elseif ($get('ciudad_selector') === 'regional') {
+                                    $latest = \App\Models\ReportRegional::latest()->first();
+                                    if ($latest) $set('report_regional_id', $latest->id);
+                                }
+                            }),
+
+                        // 1.1 VINCULACIÓN MONTERÍA
                         Forms\Components\Select::make('report_id')
-                            ->label('Vincular al Reporte')
+                            ->label('Vincular al Reporte (Montería)')
                             ->options(fn () => Report::latest()->take(5)->get()->mapWithKeys(fn ($r) => [$r->id => "Reporte {$r->fecha->format('d/m')} - " . ucfirst($r->turno)]))
                             ->default(fn () => Report::latest()->first()?->id)
-                            ->required()
+                            ->required(fn (Forms\Get $get) => $get('ciudad_selector') === 'monteria')
+                            ->visible(fn (Forms\Get $get) => $get('ciudad_selector') === 'monteria')
+                            ->selectablePlaceholder(false),
+
+                        // 1.2 VINCULACIÓN PUERTO LIBERTADOR
+                        Forms\Components\Select::make('report_puerto_libertador_id')
+                            ->label('Vincular al Reporte (Puerto Libertador)')
+                            ->options(fn () => \App\Models\ReportPuertoLibertador::latest()->take(5)->get()->mapWithKeys(fn ($r) => [$r->id => "Reporte {$r->fecha->format('d/m')} - " . ucfirst($r->turno)]))
+                            ->default(fn () => \App\Models\ReportPuertoLibertador::latest()->first()?->id)
+                            ->required(fn (Forms\Get $get) => $get('ciudad_selector') === 'puerto_libertador')
+                            ->visible(fn (Forms\Get $get) => $get('ciudad_selector') === 'puerto_libertador')
+                            ->selectablePlaceholder(false),
+
+                        // 1.3 VINCULACIÓN REGIONAL
+                        Forms\Components\Select::make('report_regional_id')
+                            ->label('Vincular al Reporte (Regional)')
+                            ->options(fn () => \App\Models\ReportRegional::latest()->take(5)->get()->mapWithKeys(fn ($r) => [$r->id => "Reporte {$r->fecha->format('d/m')} - " . ucfirst($r->turno)]))
+                            ->default(fn () => \App\Models\ReportRegional::latest()->first()?->id)
+                            ->required(fn (Forms\Get $get) => $get('ciudad_selector') === 'regional')
+                            ->visible(fn (Forms\Get $get) => $get('ciudad_selector') === 'regional')
                             ->selectablePlaceholder(false),
 
                         // 2. TIPO DE FALLA
                         Forms\Components\Select::make('tipo_falla')
                             ->label('Tipo de Incidente')
-                            ->options([
-                                'falla_olt' => '📡 Falla en OLT (Múltiples Tarjetas)',
-                                'falla_tv' => '📺 Servidor de TV / Canales',
-                                /* 'fibra' => '✂️ Fibra',
-                                'energia' => '⚡ Energía', 
-                                'equipo_alarmado' => '🚨 Equipo', 
-                                'mantenimiento' => '🛠️ Mant.', 
-                                */
-                            ])
+                            ->options(fn (Forms\Get $get) => match ($get('ciudad_selector')) {
+                                'puerto_libertador' => [
+                                    'falla_olt' => '📡 Falla en OLT',
+                                    'falla_mikrotik' => '🖧 Falla en Mikrotik 2116',
+                                    'falla_enlace' => '🔗 Falla en Enlace Dedicado',
+                                    'falla_tv_server' => '📺 Falla en Servidor TV',
+                                    'falla_modulador' => '📡 Falla en Modulador IP',
+                                ],
+                                'regional' => [
+                                    'falla_general' => '⚠️ Falla General / Sede',
+                                    'falla_olt' => '📡 Falla en OLT',
+                                    'falla_mikrotik' => '🖧 Falla en Mikrotik',
+                                    'falla_enlace' => '🔗 Falla en Enlace',
+                                ],
+                                default => [ // Montería
+                                    'falla_olt' => '📡 Falla en OLT (Múltiples Tarjetas)',
+                                    'falla_tv' => '📺 Servidor de TV / Canales',
+                                    'internet_falla_general' => '🌐 Internet Falla General',
+                                    'internet_falla_especifica' => '👤 Internet Falla Usuario Específico',
+                                ]
+                            })
+                            ->required()
                             ->required()
                             ->live()
-                            ->afterStateUpdated(fn (Forms\Set $set) => $set('identificador', null)),
+                            ->afterStateUpdated(function (Forms\Set $set, $state) {
+                                $set('identificador', null);
+                                if ($state === 'internet_falla_especifica') {
+                                    $set('usuarios_afectados', [
+                                        ['nombre' => '', 'cedula' => '', 'ip' => '']
+                                    ]);
+                                } elseif ($state === 'internet_falla_general') {
+                                    $set('usuarios_afectados', array_fill(0, 2, ['nombre' => '', 'cedula' => '', 'ip' => '']));
+                                }
+                            }),
 
-                        // --- ESCENARIO A: FALLA OLT (REPEATER) ---
+                        // --- ESCENARIO D: INTERNET FALLA GENERAL ---
+                        Forms\Components\Repeater::make('usuarios_afectados')
+                            ->label(fn (Forms\Get $get) => $get('tipo_falla') === 'internet_falla_especifica' ? 'Datos del Usuario' : 'Usuarios Afectados')
+                            ->schema([
+                                Forms\Components\TextInput::make('nombre')->label('Nombre')->required(),
+                                Forms\Components\TextInput::make('cedula')->label('Cédula')->required(),
+                                Forms\Components\TextInput::make('ip')->label('IP')->required()->ipv4(),
+                            ])
+                            ->columns(3)
+                            ->defaultItems(fn (Forms\Get $get) => $get('tipo_falla') === 'internet_falla_especifica' ? 1 : 2)
+                            ->maxItems(fn (Forms\Get $get) => $get('tipo_falla') === 'internet_falla_especifica' ? 1 : null)
+                            ->reorderable(fn (Forms\Get $get) => $get('tipo_falla') !== 'internet_falla_especifica')
+                            ->deletable(fn (Forms\Get $get) => $get('tipo_falla') !== 'internet_falla_especifica')
+                            ->addable(fn (Forms\Get $get) => $get('tipo_falla') !== 'internet_falla_especifica')
+                            ->visible(fn (Forms\Get $get) => in_array($get('tipo_falla'), ['internet_falla_general', 'internet_falla_especifica']))
+                            ->required(),
+
+                        // --- ESCENARIO A: FALLA OLT MONTERÍA (REPEATER) ---
                         Forms\Components\Group::make()
-                            ->visible(fn (Forms\Get $get) => $get('tipo_falla') === 'falla_olt')
+                            ->visible(fn (Forms\Get $get) => $get('tipo_falla') === 'falla_olt' && $get('ciudad_selector') === 'monteria')
                             ->schema([
                                 Forms\Components\Select::make('olt_nombre')
                                     ->label('Seleccionar OLT Afectada')
@@ -96,7 +194,7 @@ class IncidentResource extends Resource
                             ->multiple()
                             ->searchable()
                             ->options(CanalesHelper::getLista()) // <--- LISTA DEL PDF
-                            ->visible(fn (Forms\Get $get) => $get('tipo_falla') === 'falla_tv')
+                            ->visible(fn (Forms\Get $get) => $get('tipo_falla') === 'falla_tv' && $get('ciudad_selector') === 'monteria')
                             ->required(),
 
                         // --- ESCENARIO C: GENÉRICO ---
@@ -104,7 +202,16 @@ class IncidentResource extends Resource
                             ->label('Identificador del Equipo / Sector')
                             ->placeholder('Ej: Arpón 13-8')
                             ->required()
-                            ->visible(fn (Forms\Get $get) => !in_array($get('tipo_falla'), ['falla_olt', 'falla_tv']))
+                            ->visible(fn (Forms\Get $get) => !in_array($get('tipo_falla'), [
+                                'falla_olt', 
+                                'falla_tv',
+                                'falla_mikrotik',
+                                'falla_enlace',
+                                'falla_tv_server',
+                                'falla_modulador',
+                                'internet_falla_general',
+                                'internet_falla_especifica'
+                            ]))
                             ->rule(function (Forms\Get $get) {
                                 return Rule::unique('incidents', 'identificador')
                                     ->where('report_id', $get('report_id'))
@@ -112,18 +219,16 @@ class IncidentResource extends Resource
                             }, 'Ya existe un reporte para este equipo.'),
 
                         // --- CAMPOS COMUNES ---
-                        Forms\Components\TextInput::make('barrios')
-                            ->label('Barrios Afectados')
-                            ->required()
-                            ->columnSpanFull(),
+                        Forms\Components\Select::make('estado')
+                            ->options(['pendiente' => '🔴 Pendiente', 'en_proceso' => '🟠 En Proceso', 'resuelto' => '✅ Resuelto'])
+                            ->default('pendiente')
+                            ->required(),
 
-                        Forms\Components\Grid::make(2)->schema([
-                            Forms\Components\TextInput::make('usuarios_afectados')->numeric()->label('Usuarios Afectados'),
-                            Forms\Components\Select::make('estado')
-                                ->options(['pendiente' => '🔴 Pendiente', 'en_proceso' => '🟠 En Proceso', 'resuelto' => '✅ Resuelto'])
-                                ->default('pendiente')
-                                ->required(),
-                        ]),
+                        Forms\Components\Textarea::make('configuracion_especial')
+                            ->label('Configuración Especial')
+                            ->rows(3)
+                            ->columnSpanFull()
+                            ->visible(fn (Forms\Get $get) => $get('tipo_falla') === 'internet_falla_especifica'),
 
                         Forms\Components\Textarea::make('descripcion')
                             ->label('Observaciones Adicionales')
@@ -137,9 +242,33 @@ class IncidentResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('report.fecha')->date('d/m')->label('Fecha'),
-                Tables\Columns\TextColumn::make('report.turno')->badge(),
-                
+                Tables\Columns\TextColumn::make('created_at')
+                    ->label('Fecha y Hora')
+                    ->dateTime('d/m/Y h:i A')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: false),
+
+                Tables\Columns\TextColumn::make('ciudad_origen')
+                    ->label('Ciudad / Sede')
+                    ->state(function (Incident $record) {
+                        if ($record->report_puerto_libertador_id) return 'Puerto Libertador';
+                        if ($record->report_regional_id) return 'Regional';
+                        return 'Montería';
+                    })
+                    ->badge()
+                    ->color(fn (string $state): string => match ($state) {
+                        'Puerto Libertador' => 'info',
+                        'Regional' => 'warning',
+                        'Montería' => 'success',
+                        default => 'gray',
+                    })
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        return $query->orderByRaw("CASE 
+                            WHEN report_puerto_libertador_id IS NOT NULL THEN 1 
+                            WHEN report_regional_id IS NOT NULL THEN 2 
+                            ELSE 0 END $direction");
+                    }),
+
                 Tables\Columns\TextColumn::make('identificador_visual')
                     ->label('Equipo / Incidente')
                     ->state(function (Incident $record) {
@@ -165,11 +294,22 @@ class IncidentResource extends Resource
                         'falla_olt' => 'OLT',
                         'falla_tv' => 'TV Server',
                         'fibra' => 'Fibra',
+                        'falla_mikrotik' => 'Mikrotik',
+                        'falla_enlace' => 'Enlace',
+                        'falla_general' => 'Falla General',
+                        'internet_falla_general' => 'Internet General',
+                        'internet_falla_especifica' => 'Usuario Específico',
                         default => ucfirst($state),
                     })
                     ->badge(),
 
-                Tables\Columns\TextColumn::make('barrios')->limit(20),
+
+                
+                Tables\Columns\TextColumn::make('descripcion')
+                    ->label('Detalle')
+                    ->limit(30)
+                    ->tooltip(fn (Incident $record): string => $record->descripcion ?? '')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 
                 Tables\Columns\TextColumn::make('estado')
                     ->badge()
@@ -178,6 +318,27 @@ class IncidentResource extends Resource
                     }),
             ])
             ->defaultSort('created_at', 'desc')
+            ->filters([
+                Tables\Filters\SelectFilter::make('ciudad')
+                    ->label('Filtrar por Ciudad')
+                    ->options([
+                        'monteria' => 'Montería',
+                        'puerto_libertador' => 'Puerto Libertador',
+                        'regional' => 'Sedes Regionales',
+                    ])
+                    ->query(function (Builder $query, array $data) {
+                        if ($data['value'] === 'monteria') {
+                            return $query->whereNotNull('report_id');
+                        }
+                        if ($data['value'] === 'puerto_libertador') {
+                            return $query->whereNotNull('report_puerto_libertador_id');
+                        }
+                        if ($data['value'] === 'regional') {
+                            return $query->whereNotNull('report_regional_id');
+                        }
+                        return $query;
+                    }),
+            ])
             ->actions([Tables\Actions\EditAction::make(), Tables\Actions\DeleteAction::make()])
             ->bulkActions([Tables\Actions\BulkActionGroup::make([Tables\Actions\DeleteBulkAction::make()])]);
     }

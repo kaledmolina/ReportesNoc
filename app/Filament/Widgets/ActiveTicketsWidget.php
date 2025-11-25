@@ -78,11 +78,53 @@ class ActiveTicketsWidget extends BaseWidget
                         default => $state,
                     }),
                 
+                Tables\Columns\TextColumn::make('ciudad_origen')
+                    ->label('Ciudad / Sede')
+                    ->state(function (Incident $record) {
+                        if ($record->report_puerto_libertador_id) return 'Puerto Libertador';
+                        if ($record->report_regional_id) return 'Regional';
+                        return 'Montería';
+                    })
+                    ->badge()
+                    ->color(fn (string $state): string => match ($state) {
+                        'Puerto Libertador' => 'info',
+                        'Regional' => 'warning',
+                        'Montería' => 'success',
+                        default => 'gray',
+                    })
+                    ->sortable(query: function ($query, string $direction) {
+                        return $query->orderByRaw("CASE 
+                            WHEN report_puerto_libertador_id IS NOT NULL THEN 1 
+                            WHEN report_regional_id IS NOT NULL THEN 2 
+                            ELSE 0 END $direction");
+                    }),
+
                 Tables\Columns\TextColumn::make('report.turno')
                     ->label('Origen')
                     ->formatStateUsing(fn ($state, $record) => "Reporte {$record->report->fecha->format('d/m')} ({$state})")
                     ->color('gray')
                     ->toggleable(isToggledHiddenByDefault: true), // Oculto por defecto para limpiar la vista
+            ])
+            ->filters([
+                Tables\Filters\SelectFilter::make('ciudad')
+                    ->label('Filtrar por Ciudad')
+                    ->options([
+                        'monteria' => 'Montería',
+                        'puerto_libertador' => 'Puerto Libertador',
+                        'regional' => 'Sedes Regionales',
+                    ])
+                    ->query(function ($query, array $data) {
+                        if ($data['value'] === 'monteria') {
+                            return $query->whereNotNull('report_id');
+                        }
+                        if ($data['value'] === 'puerto_libertador') {
+                            return $query->whereNotNull('report_puerto_libertador_id');
+                        }
+                        if ($data['value'] === 'regional') {
+                            return $query->whereNotNull('report_regional_id');
+                        }
+                        return $query;
+                    }),
             ])
             ->actions([
                 // ACCIÓN 1: DE PENDIENTE A EN PROCESO

@@ -17,9 +17,8 @@ class ReportResource extends Resource
 {
     protected static ?string $model = Report::class;
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-list';
-    protected static ?string $navigationLabel = 'Reportes NOC';
+    protected static ?string $navigationLabel = 'Reportes NOC Monteria';
     protected static ?string $modelLabel = 'Reporte Diario';
-    protected static ?string $navigationGroup = 'Operaciones'; // Opcional: Agrupa en el menú
 
     public static function form(Form $form): Form
     {

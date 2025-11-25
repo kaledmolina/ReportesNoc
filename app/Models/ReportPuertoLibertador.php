@@ -4,24 +4,26 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class Report extends Model
+class ReportPuertoLibertador extends Model
 {
     protected $guarded = [];
 
     protected $casts = [
         'fecha' => 'date',
         'tv_canales_offline' => 'array',
-        'concentradores_ok' => 'boolean',
-        'proveedores_ok' => 'boolean',
-        // 'intalflix_online' => 'boolean',  <-- ELIMINADO
-        'lista_concentradores' => 'array',
-        'lista_proveedores' => 'array',
-        'olt_monteria_detalle' => 'array', 
-        'olt_backup_detalle' => 'array',
-        // --- NUEVO CAMPO ---
-        'lista_servidores' => 'array', 
+        'olt_operativa' => 'boolean',
+        'mikrotik_2116_operativo' => 'boolean',
+        'enlace_dedicado_operativo' => 'boolean',
+        'servidor_tv_operativo' => 'boolean',
+        'modulador_ip_operativo' => 'boolean',
     ];
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
 
     public function incidents(): HasMany
     {

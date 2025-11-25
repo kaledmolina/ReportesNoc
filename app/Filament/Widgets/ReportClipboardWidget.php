@@ -180,6 +180,20 @@ class ReportClipboardWidget extends Widget
 
         if ($report->incidents->isEmpty() && empty($report->observaciones_generales) && empty($report->novedades_servidores)) {
             $text .= "Sin novedades adicionales reportadas.\n";
+        } else {
+            // Resumen de Incidentes
+            $pendientes = $report->incidents->where('estado', 'pendiente')->count();
+            $enProceso = $report->incidents->where('estado', 'en_proceso')->count();
+            $resueltos = $report->incidents->where('estado', 'resuelto')->count();
+
+            $resumen = [];
+            if ($pendientes > 0) $resumen[] = "{$pendientes} pendientes";
+            if ($enProceso > 0) $resumen[] = "{$enProceso} en proceso";
+            if ($resueltos > 0) $resumen[] = "{$resueltos} resueltos";
+
+            if (!empty($resumen)) {
+                $text .= "\nResumen: " . implode(', ', $resumen);
+            }
         }
 
         return [

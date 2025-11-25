@@ -12,11 +12,22 @@ class Incident extends Model
     protected $casts = [
         'tv_canales_afectados' => 'array',
         'olt_afectacion' => 'array', // ¡Nueva lista de tarjetas!
+        'usuarios_afectados' => 'array',
     ];
 
     public function report(): BelongsTo
     {
         return $this->belongsTo(Report::class);
+    }
+
+    public function reportPuertoLibertador(): BelongsTo
+    {
+        return $this->belongsTo(ReportPuertoLibertador::class);
+    }
+
+    public function reportRegional(): BelongsTo
+    {
+        return $this->belongsTo(ReportRegional::class);
     }
     
     // ACCESOR MÁGICO ACTUALIZADO:
