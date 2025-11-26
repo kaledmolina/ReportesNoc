@@ -10,7 +10,12 @@ use Carbon\Carbon;
 class ReportClipboardWidget extends Widget
 {
     protected static string $view = 'filament.widgets.report-clipboard-widget';
-    protected int | string | array $columnSpan = 'full';
+    protected int | string | array $columnSpan = 'full'; 
+
+    public static function canView(): bool
+    {
+        return auth()->user()->can('view_widget_clipboard') || auth()->user()->hasRole('super_admin');
+    }
     protected static ?int $sort = 6; 
 
     public function getViewData(): array

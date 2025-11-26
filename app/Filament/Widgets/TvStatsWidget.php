@@ -11,6 +11,13 @@ class TvStatsWidget extends BaseWidget
 {
     // Orden 5: Aparece después de Servidores
     protected static ?int $sort = 5;
+    protected ?string $heading = 'Televisión (Canales)';
+
+    public static function canView(): bool
+    {
+        return auth()->user()->can('view_widget_tv') || auth()->user()->hasRole('super_admin');
+    }
+
     protected static ?string $pollingInterval = '15s';
 
     protected function getStats(): array

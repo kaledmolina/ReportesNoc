@@ -13,6 +13,11 @@ class StatsOverview extends BaseWidget
     protected static ?string $pollingInterval = '15s';
     protected static ?int $sort = 1; // Que aparezca primero
 
+    public static function canView(): bool
+    {
+        return auth()->user()->can('view_widget_stats_overview') || auth()->user()->hasRole('super_admin');
+    }
+
     protected function getStats(): array
     {
         Carbon::setLocale('es');
@@ -49,9 +54,12 @@ class StatsOverview extends BaseWidget
                 ->descriptionIcon('heroicon-m-check-badge')
                 ->color('success'),
 
-            Stat::make('Temp. OLT Main', $tempOlt . '°C')
-                ->description($ultimoReporte ? 'Actualizado: ' . $ultimoReporte->created_at->diffForHumans() : 'Sin datos')
-                ->color($tempOlt > 32 ? 'danger' : 'info'),
+            Stat::make('Total Tickets Resueltos', Incident::where('estado', 'resuelto')->count())
+                ->description((function () {
+                    $last = Incident::where('estado', 'resuelto')->latest('updated_at')->first();
+                    return $last ? 'Actualizado: ' . $last->updated_at->diffForHumans() : 'Sin datos';
+                })())
+                ->color('success'),
         ];
     }
 }

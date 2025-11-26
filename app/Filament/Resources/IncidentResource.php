@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\IncidentResource\Pages;
+use App\Filament\Resources\IncidentResource\RelationManagers;
 use App\Models\Incident;
 use App\Models\Report;
 use App\Helpers\CanalesHelper; // <--- Importamos la lista de canales
@@ -224,6 +225,14 @@ class IncidentResource extends Resource
                             ->default('pendiente')
                             ->required(),
 
+                        Forms\Components\Select::make('responsibles')
+                            ->label('Asignar Responsables (Tickets)')
+                            ->relationship('responsibles', 'name')
+                            ->multiple()
+                            ->searchable()
+                            ->preload()
+                            ->columnSpanFull(),
+
                         Forms\Components\Textarea::make('configuracion_especial')
                             ->label('Configuración Especial')
                             ->rows(3)
@@ -242,6 +251,14 @@ class IncidentResource extends Resource
     {
         return $table
             ->columns([
+                Tables\Columns\TextColumn::make('ticket_number')
+                    ->label('Ticket #')
+                    ->searchable()
+                    ->copyable()
+                    ->weight('bold')
+                    ->color('primary')
+                    ->sortable(),
+
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Fecha y Hora')
                     ->dateTime('d/m/Y h:i A')
@@ -289,6 +306,12 @@ class IncidentResource extends Resource
                     ->weight('bold')
                     ->description(fn (Incident $record) => $record->identificador),
 
+                Tables\Columns\TextColumn::make('responsibles.name')
+                    ->label('Responsables')
+                    ->badge()
+                    ->color('info')
+                    ->limitList(2),
+
                 Tables\Columns\TextColumn::make('tipo_falla')
                     ->formatStateUsing(fn (string $state): string => match ($state) {
                         'falla_olt' => 'OLT',
@@ -302,7 +325,6 @@ class IncidentResource extends Resource
                         default => ucfirst($state),
                     })
                     ->badge(),
-
 
                 
                 Tables\Columns\TextColumn::make('descripcion')
@@ -338,12 +360,85 @@ class IncidentResource extends Resource
                         }
                         return $query;
                     }),
+                
+                Tables\Filters\Filter::make('mis_tickets')
+                    ->label('Mis Tickets Asignados')
+                    ->query(fn (Builder $query) => $query->whereHas('responsibles', fn ($q) => $q->where('user_id', auth()->id()))),
+                
+                Tables\Filters\Filter::make('sin_asignar')
+                    ->label('Tickets Sin Asignar')
+                    ->query(fn (Builder $query) => $query->doesntHave('responsibles')),
             ])
-            ->actions([Tables\Actions\EditAction::make(), Tables\Actions\DeleteAction::make()])
+            ->actions([
+                Tables\Actions\EditAction::make(), 
+                Tables\Actions\DeleteAction::make(),
+                
+                Tables\Actions\Action::make('asignar_responsable')
+                    ->label('Asignar')
+                    ->icon('heroicon-o-user-plus')
+                    ->color('primary')
+                    ->form([
+                        Forms\Components\Select::make('responsibles')
+                            ->label('Asignar a:')
+                            ->multiple()
+                            ->options(\App\Models\User::all()->pluck('name', 'id'))
+                            ->required(),
+                    ])
+                    ->action(function (Incident $record, array $data) {
+                        // Attach users with pivot data
+                        $record->responsibles()->syncWithPivotValues($data['responsibles'], [
+                            'status' => 'pending',
+                            'assigned_by' => auth()->id(),
+                            'assigned_at' => now(),
+                        ], false); // false = no detach existing, just add/update
+                        
+                        // Enviar Notificaciones a la Base de Datos
+                        foreach ($data['responsibles'] as $userId) {
+                            $user = \App\Models\User::find($userId);
+                            if ($user) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('Nuevo Ticket Asignado')
+                                    ->body("Se te ha asignado el ticket #{$record->ticket_number}")
+                                    ->warning()
+                                    ->actions([
+                                        \Filament\Notifications\Actions\Action::make('ver')
+                                            ->button()
+                                            ->url(IncidentResource::getUrl('edit', ['record' => $record])),
+                                    ])
+                                    ->sendToDatabase($user);
+                            }
+                        }
+
+                        \Filament\Notifications\Notification::make()
+                            ->title('Responsables asignados correctamente')
+                            ->success()
+                            ->send();
+                    })
+            ])
             ->bulkActions([Tables\Actions\BulkActionGroup::make([Tables\Actions\DeleteBulkAction::make()])]);
     }
 
-    public static function getRelations(): array { return []; }
+    public static function getRelations(): array
+    {
+        return [
+            RelationManagers\ResponsiblesRelationManager::class,
+        ];
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        $query = parent::getEloquentQuery();
+
+        $user = auth()->user();
+
+        if ($user->hasRole('super_admin') || $user->can('view_all_incidents')) {
+            return $query;
+        }
+
+        return $query->whereHas('responsibles', function ($q) use ($user) {
+            $q->where('user_id', $user->id);
+        });
+    }
     public static function getPages(): array
     {
         return [

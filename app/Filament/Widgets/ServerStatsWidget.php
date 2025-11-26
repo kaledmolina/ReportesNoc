@@ -10,7 +10,13 @@ class ServerStatsWidget extends BaseWidget
 {
     // Orden 4: Aparece después de Concentradores
     protected static ?int $sort = 4;
+    protected ?string $heading = 'Servidores (Mikrotik)';
     protected static ?string $pollingInterval = '15s';
+
+    public static function canView(): bool
+    {
+        return auth()->user()->can('view_widget_server') || auth()->user()->hasRole('super_admin');
+    }
 
     protected function getStats(): array
     {

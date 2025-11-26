@@ -10,7 +10,13 @@ class ConcentratorStatsWidget extends BaseWidget
 {
     // Orden: 3 (Para que salga después de los proveedores)
     protected static ?int $sort = 5;
+    protected ?string $heading = 'Concentradores (OLT)';
     protected static ?string $pollingInterval = '15s';
+
+    public static function canView(): bool
+    {
+        return auth()->user()->can('view_widget_concentrator') || auth()->user()->hasRole('super_admin');
+    }
 
     protected function getStats(): array
     {

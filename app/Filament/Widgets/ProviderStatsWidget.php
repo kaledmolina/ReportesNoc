@@ -13,6 +13,12 @@ class ProviderStatsWidget extends BaseWidget
     
     // Opcional: Refrescar cada cierto tiempo si lo deseas
     protected static ?string $pollingInterval = '15s';
+    protected ?string $heading = 'Proveedores (Enlaces)';
+
+    public static function canView(): bool
+    {
+        return auth()->user()->can('view_widget_provider') || auth()->user()->hasRole('super_admin');
+    }
 
     protected function getStats(): array
     {

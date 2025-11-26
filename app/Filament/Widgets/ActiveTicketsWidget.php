@@ -3,33 +3,54 @@
 namespace App\Filament\Widgets;
 
 use App\Models\Incident;
-use App\Filament\Resources\IncidentResource; // Importamos el Recurso para usar su formulario
+use App\Filament\Resources\IncidentResource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget as BaseWidget;
 use Filament\Notifications\Notification;
+use Filament\Forms;
+use Illuminate\Database\Eloquent\Builder;
 
 class ActiveTicketsWidget extends BaseWidget
 {
     protected static ?int $sort = 3; 
     protected int | string | array $columnSpan = 'full'; 
-    protected static ?string $heading = '🚨 Seguimiento de Incidentes Activos';
+    protected static ?string $heading = '🚨 Mis Tickets Asignados';
+
+    public static function canView(): bool
+    {
+        return auth()->user()->can('view_widget_active_tickets') || auth()->user()->hasRole('super_admin');
+    }
 
     public function table(Table $table): Table
     {
         return $table
-            // Traemos todo lo que NO esté resuelto
             ->query(
-                Incident::query()->where('estado', '!=', 'resuelto')
+                Incident::query()
+                    ->whereHas('responsibles', function (Builder $query) {
+                        $query->where('user_id', auth()->id());
+                    })
+                    ->where('estado', '!=', 'resuelto')
             )
-            // Refrescamos el widget cada 10 segundos para ver cambios de otros usuarios
             ->poll('10s') 
             ->columns([
+                Tables\Columns\TextColumn::make('ticket_number')
+                    ->label('Ticket')
+                    ->searchable()
+                    ->sortable()
+                    ->weight('bold')
+                    ->color('primary'),
+
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Reportado')
                     ->since()
                     ->sortable(),
                 
+                Tables\Columns\TextColumn::make('createdBy.name')
+                    ->label('Creado Por')
+                    ->icon('heroicon-m-user')
+                    ->sortable(),
+
                 Tables\Columns\TextColumn::make('tipo_falla')
                     ->badge()
                     ->formatStateUsing(fn (string $state): string => match ($state) {
@@ -49,21 +70,11 @@ class ActiveTicketsWidget extends BaseWidget
                     ->label('Equipo / Afectación')
                     ->weight('bold')
                     ->state(function (Incident $record) {
-                        // Lógica Visual para la Tabla
                         if ($record->tipo_falla === 'falla_olt') {
-                            if (is_array($record->olt_afectacion)) {
-                                $countTarjetas = count($record->olt_afectacion);
-                                return "OLT {$record->olt_nombre} ({$countTarjetas} Tarjetas)";
-                            }
                             return "OLT {$record->olt_nombre}";
                         }
-                        if ($record->tipo_falla === 'falla_tv') {
-                            $count = count($record->tv_canales_afectados ?? []);
-                            return "Servidor TV ({$count} canales)";
-                        }
                         return $record->identificador;
-                    })
-                    ->description(fn (Incident $record) => $record->identificador),
+                    }),
 
                 Tables\Columns\TextColumn::make('estado')
                     ->badge()
@@ -71,99 +82,110 @@ class ActiveTicketsWidget extends BaseWidget
                         'pendiente' => 'danger',
                         'en_proceso' => 'warning',
                         default => 'gray',
-                    })
-                    ->formatStateUsing(fn (string $state): string => match ($state) {
-                        'pendiente' => '🔴 Pendiente',
-                        'en_proceso' => '🟠 En Revisión',
-                        default => $state,
-                    }),
-                
-                Tables\Columns\TextColumn::make('ciudad_origen')
-                    ->label('Ciudad / Sede')
-                    ->state(function (Incident $record) {
-                        if ($record->report_puerto_libertador_id) return 'Puerto Libertador';
-                        if ($record->report_regional_id) return 'Regional';
-                        return 'Montería';
-                    })
-                    ->badge()
-                    ->color(fn (string $state): string => match ($state) {
-                        'Puerto Libertador' => 'info',
-                        'Regional' => 'warning',
-                        'Montería' => 'success',
-                        default => 'gray',
-                    })
-                    ->sortable(query: function ($query, string $direction) {
-                        return $query->orderByRaw("CASE 
-                            WHEN report_puerto_libertador_id IS NOT NULL THEN 1 
-                            WHEN report_regional_id IS NOT NULL THEN 2 
-                            ELSE 0 END $direction");
-                    }),
-
-                Tables\Columns\TextColumn::make('report.turno')
-                    ->label('Origen')
-                    ->formatStateUsing(fn ($state, $record) => "Reporte {$record->report->fecha->format('d/m')} ({$state})")
-                    ->color('gray')
-                    ->toggleable(isToggledHiddenByDefault: true), // Oculto por defecto para limpiar la vista
-            ])
-            ->filters([
-                Tables\Filters\SelectFilter::make('ciudad')
-                    ->label('Filtrar por Ciudad')
-                    ->options([
-                        'monteria' => 'Montería',
-                        'puerto_libertador' => 'Puerto Libertador',
-                        'regional' => 'Sedes Regionales',
-                    ])
-                    ->query(function ($query, array $data) {
-                        if ($data['value'] === 'monteria') {
-                            return $query->whereNotNull('report_id');
-                        }
-                        if ($data['value'] === 'puerto_libertador') {
-                            return $query->whereNotNull('report_puerto_libertador_id');
-                        }
-                        if ($data['value'] === 'regional') {
-                            return $query->whereNotNull('report_regional_id');
-                        }
-                        return $query;
                     }),
             ])
             ->actions([
-                // ACCIÓN 1: DE PENDIENTE A EN PROCESO
-                Tables\Actions\Action::make('iniciar_proceso')
-                    ->label('Atender')
-                    ->icon('heroicon-m-play') // Ícono de "Play"
-                    ->color('warning') // Naranja
-                    ->button() // Estilo botón para que destaque
-                    ->visible(fn (Incident $record) => $record->estado === 'pendiente')
-                    ->action(function (Incident $record) {
-                        $record->update(['estado' => 'en_proceso']);
-                        Notification::make()->title('Caso en seguimiento')->warning()->send();
-                    }),
-
-                // ACCIÓN 2: DE EN PROCESO A RESUELTO
-                Tables\Actions\Action::make('finalizar_caso')
-                    ->label('Finalizar')
-                    ->icon('heroicon-m-check-badge') // Ícono de Check
-                    ->color('success') // Verde
-                    ->button()
-                    ->visible(fn (Incident $record) => $record->estado === 'en_proceso')
-                    ->requiresConfirmation()
-                    ->modalHeading('¿Cerrar Incidente?')
-                    ->modalDescription('El incidente desaparecerá de esta lista y quedará marcado como resuelto.')
-                    ->modalSubmitActionLabel('Sí, solucionar')
-                    ->action(function (Incident $record) {
-                        $record->update(['estado' => 'resuelto']);
-                        Notification::make()->title('Incidente Solucionado')->success()->send();
-                    }),
-                
-                // ACCIÓN 3: VER DETALLE (OJO)
-                // Usamos el formulario del recurso IncidentResource para mostrar todos los campos
+                // ACCIÓN: VER DETALLE (Siempre visible)
                 Tables\Actions\ViewAction::make()
-                    ->label('Ver Detalle')
+                    ->label('Ver')
                     ->icon('heroicon-m-eye')
                     ->iconButton()
                     ->color('gray')
                     ->modalHeading('Detalle del Incidente')
                     ->form(fn ($form) => IncidentResource::form($form)),
+
+                // ACCIÓN: ACEPTAR TICKET
+                Tables\Actions\Action::make('accept_ticket')
+                    ->label('Aceptar')
+                    ->icon('heroicon-m-check')
+                    ->color('success')
+                    ->button()
+                    ->visible(function (Incident $record) {
+                        $myPivot = $record->responsibles()
+                            ->where('user_id', auth()->id())
+                            ->first()
+                            ?->pivot;
+                        
+                        return $myPivot && $myPivot->status === 'pending';
+                    })
+                    ->action(function (Incident $record) {
+                        $record->responsibles()->updateExistingPivot(auth()->id(), [
+                            'status' => 'accepted',
+                            'accepted_at' => now(),
+                        ]);
+                        Notification::make()->title('Ticket Aceptado')->success()->send();
+                    }),
+
+                // ACCIÓN: RECHAZAR TICKET
+                Tables\Actions\Action::make('reject_ticket')
+                    ->label('Rechazar')
+                    ->icon('heroicon-m-x-mark')
+                    ->color('danger')
+                    ->button()
+                    ->visible(function (Incident $record) {
+                        $myPivot = $record->responsibles()
+                            ->where('user_id', auth()->id())
+                            ->first()
+                            ?->pivot;
+                        
+                        return $myPivot && $myPivot->status === 'pending';
+                    })
+                    ->form([
+                        Forms\Components\Textarea::make('notes')
+                            ->label('Motivo del rechazo')
+                            ->required()
+                            ->rows(3),
+                    ])
+                    ->action(function (Incident $record, array $data) {
+                        $record->responsibles()->updateExistingPivot(auth()->id(), [
+                            'status' => 'rejected',
+                            'rejected_at' => now(),
+                            'notes' => $data['notes'],
+                        ]);
+                        Notification::make()->title('Ticket Rechazado')->warning()->send();
+                    }),
+
+                // ACCIÓN: ATENDER (Solo si ya acepté Y soy el último responsable)
+                Tables\Actions\Action::make('iniciar_proceso')
+                    ->label('Atender')
+                    ->icon('heroicon-m-play')
+                    ->color('warning')
+                    ->button()
+                    ->visible(function (Incident $record) {
+                        // 1. Debe estar aceptado por mí
+                        $myPivot = $record->responsibles()
+                            ->where('user_id', auth()->id())
+                            ->first()
+                            ?->pivot;
+                        
+                        if (!$myPivot || $myPivot->status !== 'accepted') {
+                            return false;
+                        }
+
+                        // 2. Debo ser el ÚLTIMO asignado (responsable actual)
+                        $lastResponsible = $record->responsibles()
+                            ->orderByPivot('created_at', 'desc')
+                            ->first();
+                        
+                        return $lastResponsible && $lastResponsible->id === auth()->id() && $record->estado === 'pendiente';
+                    })
+                    ->action(function (Incident $record) {
+                        $record->update(['estado' => 'en_proceso']);
+                        Notification::make()->title('Caso en seguimiento')->warning()->send();
+                    }),
+
+                // ACCIÓN: FINALIZAR
+                Tables\Actions\Action::make('finalizar_caso')
+                    ->label('Finalizar')
+                    ->icon('heroicon-m-check-badge')
+                    ->color('success')
+                    ->button()
+                    ->visible(fn (Incident $record) => $record->estado === 'en_proceso')
+                    ->requiresConfirmation()
+                    ->action(function (Incident $record) {
+                        $record->update(['estado' => 'resuelto']);
+                        Notification::make()->title('Incidente Solucionado')->success()->send();
+                    }),
             ]);
     }
 }
