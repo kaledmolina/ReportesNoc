@@ -181,9 +181,32 @@ class ActiveTicketsWidget extends BaseWidget
                     ->color('success')
                     ->button()
                     ->visible(fn (Incident $record) => $record->estado === 'en_proceso')
-                    ->requiresConfirmation()
-                    ->action(function (Incident $record) {
-                        $record->update(['estado' => 'resuelto']);
+                    ->form([
+                        Forms\Components\FileUpload::make('photos_resolution')
+                            ->label('Evidencias de Solución')
+                            ->multiple()
+                            ->image()
+                            ->imageEditor()
+                            ->directory('incident-resolution-photos')
+                            ->columnSpanFull(),
+                        Forms\Components\Textarea::make('notas_resolucion')
+                            ->label('Notas de Resolución')
+                            ->required()
+                            ->placeholder('Describe cómo se solucionó el incidente...'),
+                    ])
+                    ->action(function (Incident $record, array $data) {
+                        $record->update([
+                            'estado' => 'resuelto',
+                            'photos_resolution' => $data['photos_resolution'],
+                        ]);
+
+                        // Actualizar pivot del usuario
+                        $record->responsibles()->updateExistingPivot(auth()->id(), [
+                            // 'status' => 'resolved', // No cambiamos el status porque el enum no lo permite
+                            'notes' => "Resuelto: " . $data['notas_resolucion'],
+                            'resolved_at' => now(),
+                        ]);
+
                         Notification::make()->title('Incidente Solucionado')->success()->send();
                     }),
             ]);

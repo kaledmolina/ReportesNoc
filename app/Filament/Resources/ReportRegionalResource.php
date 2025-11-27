@@ -45,6 +45,13 @@ class ReportRegionalResource extends Resource
                                 self::buildItem('valencia_modulador_ip_operativo', 'detalle_valencia_modulador_ip', 'Modulador IP'),
                                 self::buildItem('valencia_servidor_intalflix_operativo', 'detalle_valencia_servidor_intalflix', 'Servidor Intalflix'),
                                 self::buildItem('valencia_servidor_vmix_operativo', 'detalle_valencia_servidor_vmix', 'Servidor vMix'),
+                                Forms\Components\FileUpload::make('photos_valencia')
+                                    ->label('Fotos Valencia')
+                                    ->multiple()
+                                    ->image()
+                                    ->imageEditor()
+                                    ->directory('report-regional-valencia')
+                                    ->columnSpanFull(),
                             ]),
 
                         // --- TIERRALTA ---
@@ -52,10 +59,18 @@ class ReportRegionalResource extends Resource
                             ->icon('heroicon-m-building-office')
                             ->schema([
                                 self::buildItem('tierralta_olt_operativa', 'detalle_tierralta_olt', 'OLT'),
+                                self::buildItem('tierralta_olt_9_marzo_operativa', 'detalle_tierralta_olt_9_marzo', 'OLT 9 de marzo'),
                                 self::buildItem('tierralta_mikrotik_1036_operativo', 'detalle_tierralta_mikrotik_1036', 'Mikrotik 1036'),
                                 self::buildItem('tierralta_mikrotik_fomento_operativo', 'detalle_tierralta_mikrotik_fomento', 'Mikrotik Fomento'),
                                 self::buildItem('tierralta_enlace_urra_operativo', 'detalle_tierralta_enlace_urra', 'Enlace Funcionarios Urrá'),
                                 self::buildItem('tierralta_enlace_ancla_operativo', 'detalle_tierralta_enlace_ancla', 'Enlace El Ancla'),
+                                Forms\Components\FileUpload::make('photos_tierralta')
+                                    ->label('Fotos Tierralta')
+                                    ->multiple()
+                                    ->image()
+                                    ->imageEditor()
+                                    ->directory('report-regional-tierralta')
+                                    ->columnSpanFull(),
                             ]),
 
                         // --- SAN PEDRO ---
@@ -64,8 +79,16 @@ class ReportRegionalResource extends Resource
                             ->schema([
                                 self::buildItem('san_pedro_olt_operativa', 'detalle_san_pedro_olt', 'OLT'),
                                 self::buildItem('san_pedro_mikrotik_1036_operativo', 'detalle_san_pedro_mikrotik_1036', 'Mikrotik 1036'),
+                                Forms\Components\FileUpload::make('photos_san_pedro')
+                                    ->label('Fotos San Pedro')
+                                    ->multiple()
+                                    ->image()
+                                    ->imageEditor()
+                                    ->directory('report-regional-san-pedro')
+                                    ->columnSpanFull(),
                             ]),
                     ])->columnSpanFull(),
+
 
                 Forms\Components\Textarea::make('observaciones_generales')
                     ->label('Observaciones Generales')

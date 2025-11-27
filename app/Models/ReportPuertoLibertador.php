@@ -18,6 +18,7 @@ class ReportPuertoLibertador extends Model
         'enlace_dedicado_operativo' => 'boolean',
         'servidor_tv_operativo' => 'boolean',
         'modulador_ip_operativo' => 'boolean',
+        'photos' => 'array',
     ];
 
     public function user(): BelongsTo

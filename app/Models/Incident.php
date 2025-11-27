@@ -13,6 +13,8 @@ class Incident extends Model
         'tv_canales_afectados' => 'array',
         'olt_afectacion' => 'array', // ¡Nueva lista de tarjetas!
         'usuarios_afectados' => 'array',
+        'photos_creation' => 'array',
+        'photos_resolution' => 'array',
     ];
 
     protected static function booted()

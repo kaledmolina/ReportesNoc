@@ -128,6 +128,17 @@ class ReportPuertoLibertadorResource extends Resource
                         // Aquí podrías agregar un repeater o tags input para canales offline si es necesario
                     ])->columns(2),
 
+                Forms\Components\Section::make('Evidencias')
+                    ->schema([
+                        Forms\Components\FileUpload::make('photos')
+                            ->label('Fotos del Reporte')
+                            ->multiple()
+                            ->image()
+                            ->imageEditor()
+                            ->directory('report-puerto-photos')
+                            ->columnSpanFull(),
+                    ]),
+
                 Forms\Components\Section::make('Observaciones')
                     ->schema([
                         Forms\Components\Textarea::make('observaciones_generales')

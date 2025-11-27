@@ -21,6 +21,7 @@ class Report extends Model
         'olt_backup_detalle' => 'array',
         // --- NUEVO CAMPO ---
         'lista_servidores' => 'array', 
+        'photos' => 'array',
     ];
 
     public function incidents(): HasMany

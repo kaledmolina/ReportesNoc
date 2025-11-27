@@ -124,6 +124,49 @@ class AssignedIncidentResource extends Resource
                                 ->success()
                                 ->send();
                         }),
+
+                    // ACCIÓN: RESOLVER
+                    Tables\Actions\Action::make('resolver')
+                        ->label('Resolver')
+                        ->icon('heroicon-o-check-circle')
+                        ->color('success')
+                        ->visible(fn (Incident $record) => $record->estado === 'en_proceso')
+                        ->form([
+                            Forms\Components\FileUpload::make('photos_resolution')
+                                ->label('Evidencias de Solución')
+                                ->multiple()
+                                ->image()
+                                ->imageEditor()
+                                ->directory('incident-resolution-photos')
+                                ->columnSpanFull(),
+                            Forms\Components\Textarea::make('notas_resolucion')
+                                ->label('Notas de Resolución')
+                                ->required()
+                                ->placeholder('Describe cómo se solucionó el incidente...'),
+                        ])
+                        ->action(function (Incident $record, array $data) {
+                            $record->update([
+                                'estado' => 'resuelto',
+                                'photos_resolution' => $data['photos_resolution'],
+                                // Podríamos guardar las notas en la descripción o en un campo nuevo, 
+                                // por ahora lo concatenamos a la descripción o usamos un campo de notas si existiera.
+                                // Vamos a concatenarlo a la descripción para no crear más campos por ahora,
+                                // o mejor aún, actualizar el pivot del usuario.
+                            ]);
+
+                            // Actualizar pivot del usuario
+                            $record->responsibles()->updateExistingPivot(auth()->id(), [
+                                // 'status' => 'resolved', // No cambiamos el status porque el enum no lo permite
+                                'notes' => "Resuelto: " . $data['notas_resolucion'],
+                                'resolved_at' => now(),
+                            ]);
+
+                            \Filament\Notifications\Notification::make()
+                                ->title('Ticket Resuelto')
+                                ->body('El incidente ha sido marcado como resuelto.')
+                                ->success()
+                                ->send();
+                        }),
                 ])
             ])
             ->recordUrl(null);

@@ -241,6 +241,31 @@ class IncidentResource extends Resource
                             ->columnSpanFull()
                             ->visible(fn (Forms\Get $get) => $get('tipo_falla') === 'internet_falla_especifica'),
 
+                        Forms\Components\Section::make('Evidencias (Creación)')
+                            ->schema([
+                                Forms\Components\FileUpload::make('photos_creation')
+                                    ->label('Fotos del Incidente')
+                                    ->multiple()
+                                    ->image()
+                                    ->imageEditor()
+                                    ->directory('incident-creation-photos')
+                                    ->columnSpanFull(),
+                            ])->collapsible(),
+
+                        Forms\Components\Section::make('Evidencias de Solución')
+                            ->schema([
+                                Forms\Components\FileUpload::make('photos_resolution')
+                                    ->label('Fotos de la Solución')
+                                    ->multiple()
+                                    ->image()
+                                    ->imageEditor()
+                                    ->directory('incident-resolution-photos')
+                                    ->columnSpanFull()
+                                    ->disabled(), // Solo lectura en la vista general
+                            ])
+                            ->collapsible()
+                            ->visible(fn (?Incident $record) => $record && !empty($record->photos_resolution)),
+
                         Forms\Components\Textarea::make('descripcion')
                             ->label('Observaciones Adicionales')
                             ->rows(3)
@@ -381,6 +406,32 @@ class IncidentResource extends Resource
             ])
             ->actions([
                 Tables\Actions\ActionGroup::make([
+                    Tables\Actions\Action::make('share')
+                        ->label('Compartir')
+                        ->icon('heroicon-o-share')
+                        ->color('info')
+                        ->modalHeading('Compartir Ticket')
+                        ->modalSubmitAction(false)
+                        ->modalCancelActionLabel('Cerrar')
+                        ->form([
+                            Forms\Components\TextInput::make('copy_text')
+                                ->label('Copia este texto:')
+                                ->default(function (Incident $record) {
+                                    $url = \App\Filament\Resources\AssignedIncidentResource::getUrl('view', ['record' => $record]);
+                                    return "Ticket #{$record->ticket_number} - {$url}";
+                                })
+                                ->extraInputAttributes([
+                                    'readonly' => true,
+                                    'class' => 'cursor-pointer',
+                                    'x-on:click' => "
+                                        \$el.select();
+                                        document.execCommand('copy');
+                                        new FilamentNotification().title('Copiado al portapapeles').success().send();
+                                    ",
+                                ])
+                                ->columnSpanFull(),
+                        ]),
+
                     Tables\Actions\ViewAction::make(),
                     
                     Tables\Actions\Action::make('asignar_responsable')

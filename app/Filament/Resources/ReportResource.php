@@ -516,7 +516,21 @@ class ReportResource extends Resource
                     ]),
 
                 // ==========================================
-                // SECCIÓN 6: INCIDENTES REPORTADOS
+                // SECCIÓN 6: EVIDENCIAS
+                // ==========================================
+                Forms\Components\Section::make('Evidencias')
+                    ->schema([
+                        Forms\Components\FileUpload::make('photos')
+                            ->label('Fotos del Reporte')
+                            ->multiple()
+                            ->image()
+                            ->imageEditor()
+                            ->directory('report-monteria-photos')
+                            ->columnSpanFull(),
+                    ])->collapsible(),
+
+                // ==========================================
+                // SECCIÓN 7: INCIDENTES REPORTADOS
                 // ==========================================
                 Forms\Components\Section::make('Novedades e Incidentes')
                     ->description('Registro de tickets y fallas generales.')

@@ -22,6 +22,7 @@ class ReportRegional extends Model
         'valencia_servidor_vmix_operativo' => 'boolean',
         // Tierralta
         'tierralta_olt_operativa' => 'boolean',
+        'tierralta_olt_9_marzo_operativa' => 'boolean',
         'tierralta_mikrotik_1036_operativo' => 'boolean',
         'tierralta_mikrotik_fomento_operativo' => 'boolean',
         'tierralta_enlace_urra_operativo' => 'boolean',
@@ -29,6 +30,9 @@ class ReportRegional extends Model
         // San Pedro
         'san_pedro_olt_operativa' => 'boolean',
         'san_pedro_mikrotik_1036_operativo' => 'boolean',
+        'photos_valencia' => 'array',
+        'photos_tierralta' => 'array',
+        'photos_san_pedro' => 'array',
     ];
 
     public function user(): BelongsTo
