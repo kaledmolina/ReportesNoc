@@ -19,7 +19,8 @@ class IncidentResource extends Resource
 {
     protected static ?string $model = Incident::class;
     protected static ?string $navigationIcon = 'heroicon-o-exclamation-triangle';
-    protected static ?string $navigationLabel = 'Registrar Incidente Rápido';
+    protected static ?string $navigationGroup = 'Tickets';
+    protected static ?string $navigationLabel = 'Tickets Creados';
     protected static ?string $modelLabel = 'Incidente Individual';
     protected static ?int $navigationSort = 1;
 
@@ -223,7 +224,8 @@ class IncidentResource extends Resource
                         Forms\Components\Select::make('estado')
                             ->options(['pendiente' => '🔴 Pendiente', 'en_proceso' => '🟠 En Proceso', 'resuelto' => '✅ Resuelto'])
                             ->default('pendiente')
-                            ->required(),
+                            ->required()
+                            ->disabled(),
 
                         Forms\Components\Select::make('responsibles')
                             ->label('Asignar Responsables (Tickets)')
@@ -242,6 +244,14 @@ class IncidentResource extends Resource
                         Forms\Components\Textarea::make('descripcion')
                             ->label('Observaciones Adicionales')
                             ->rows(3)
+                            ->columnSpanFull(),
+                        
+                        Forms\Components\ViewField::make('timeline')
+                            ->view('filament.components.incident-timeline')
+                            ->viewData([
+                                'record' => $form->getRecord(),
+                            ])
+                            ->hidden(fn (?Incident $record) => $record === null)
                             ->columnSpanFull(),
                     ])
             ]);
@@ -340,7 +350,15 @@ class IncidentResource extends Resource
                     }),
             ])
             ->defaultSort('created_at', 'desc')
+            ->recordUrl(null)
             ->filters([
+                Tables\Filters\SelectFilter::make('estado')
+                    ->label('Estado')
+                    ->options([
+                        'pendiente' => 'Pendiente',
+                        'en_proceso' => 'En Proceso',
+                        'resuelto' => 'Resuelto',
+                    ]),
                 Tables\Filters\SelectFilter::make('ciudad')
                     ->label('Filtrar por Ciudad')
                     ->options([
@@ -360,68 +378,65 @@ class IncidentResource extends Resource
                         }
                         return $query;
                     }),
-                
-                Tables\Filters\Filter::make('mis_tickets')
-                    ->label('Mis Tickets Asignados')
-                    ->query(fn (Builder $query) => $query->whereHas('responsibles', fn ($q) => $q->where('user_id', auth()->id()))),
-                
-                Tables\Filters\Filter::make('sin_asignar')
-                    ->label('Tickets Sin Asignar')
-                    ->query(fn (Builder $query) => $query->doesntHave('responsibles')),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(), 
-                Tables\Actions\DeleteAction::make(),
-                
-                Tables\Actions\Action::make('asignar_responsable')
-                    ->label('Asignar')
-                    ->icon('heroicon-o-user-plus')
-                    ->color('primary')
-                    ->form([
-                        Forms\Components\Select::make('responsibles')
-                            ->label('Asignar a:')
-                            ->multiple()
-                            ->options(\App\Models\User::all()->pluck('name', 'id'))
-                            ->required(),
-                    ])
-                    ->action(function (Incident $record, array $data) {
-                        // Attach users with pivot data
-                        $record->responsibles()->syncWithPivotValues($data['responsibles'], [
-                            'status' => 'pending',
-                            'assigned_by' => auth()->id(),
-                            'assigned_at' => now(),
-                        ], false); // false = no detach existing, just add/update
-                        
-                        // Enviar Notificaciones a la Base de Datos
-                        foreach ($data['responsibles'] as $userId) {
-                            $user = \App\Models\User::find($userId);
-                            if ($user) {
-                                \Filament\Notifications\Notification::make()
-                                    ->title('Nuevo Ticket Asignado')
-                                    ->body("Se te ha asignado el ticket #{$record->ticket_number}")
-                                    ->warning()
-                                    ->actions([
-                                        \Filament\Notifications\Actions\Action::make('ver')
-                                            ->button()
-                                            ->url(IncidentResource::getUrl('edit', ['record' => $record])),
-                                    ])
-                                    ->sendToDatabase($user);
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\ViewAction::make(),
+                    
+                    Tables\Actions\Action::make('asignar_responsable')
+                        ->label('Asignar')
+                        ->icon('heroicon-o-user-plus')
+                        ->color('primary')
+                        ->visible(fn (Incident $record) => $record->estado === 'pendiente')
+                        ->form([
+                            Forms\Components\Select::make('responsibles')
+                                ->label('Asignar a:')
+                                ->multiple()
+                                ->options(\App\Models\User::all()->pluck('name', 'id'))
+                                ->required(),
+                        ])
+                        ->action(function (Incident $record, array $data) {
+                            // Attach users with pivot data
+                            $record->responsibles()->syncWithPivotValues($data['responsibles'], [
+                                'status' => 'pending',
+                                'assigned_by' => auth()->id(),
+                                'assigned_at' => now(),
+                            ], false); // false = no detach existing, just add/update
+                            
+                            // Enviar Notificaciones a la Base de Datos
+                            foreach ($data['responsibles'] as $userId) {
+                                $user = \App\Models\User::find($userId);
+                                if ($user) {
+                                    \Filament\Notifications\Notification::make()
+                                        ->title('Nuevo Ticket Asignado')
+                                        ->body("Se te ha asignado el ticket #{$record->ticket_number}")
+                                        ->warning()
+                                        ->actions([
+                                            \Filament\Notifications\Actions\Action::make('ver')
+                                                ->button()
+                                                ->url(IncidentResource::getUrl('edit', ['record' => $record])),
+                                        ])
+                                        ->sendToDatabase($user);
+                                }
                             }
-                        }
 
-                        \Filament\Notifications\Notification::make()
-                            ->title('Responsables asignados correctamente')
-                            ->success()
-                            ->send();
-                    })
+                            \Filament\Notifications\Notification::make()
+                                ->title('Responsables asignados correctamente')
+                                ->success()
+                                ->send();
+                        })
+                ])
             ])
-            ->bulkActions([Tables\Actions\BulkActionGroup::make([Tables\Actions\DeleteBulkAction::make()])]);
+            ->bulkActions([Tables\Actions\BulkActionGroup::make([
+                // Tables\Actions\DeleteBulkAction::make()
+                //     ->visible(fn () => auth()->user()->hasRole('super_admin')),
+            ])]);
     }
 
     public static function getRelations(): array
     {
         return [
-            RelationManagers\ResponsiblesRelationManager::class,
+            // RelationManagers\ResponsiblesRelationManager::class, // Replaced by Timeline
         ];
     }
 
@@ -435,15 +450,14 @@ class IncidentResource extends Resource
             return $query;
         }
 
-        return $query->whereHas('responsibles', function ($q) use ($user) {
-            $q->where('user_id', $user->id);
-        });
+        return $query->where('created_by', $user->id);
     }
     public static function getPages(): array
     {
         return [
             'index' => Pages\ListIncidents::route('/'),
             'create' => Pages\CreateIncident::route('/create'),
+            'view' => Pages\ViewIncident::route('/{record}'),
             'edit' => Pages\EditIncident::route('/{record}/edit'),
         ];
     }
