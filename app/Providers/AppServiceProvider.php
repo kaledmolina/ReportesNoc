@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Facades\URL; // <--- 1. AGREGA ESTO ARRIBA
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -19,8 +20,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        \Illuminate\Support\Facades\Gate::before(function ($user, $ability) {
-            return $user->hasRole('super_admin') ? true : null;
-        });
+        // 2. AGREGA ESTE BLOQUE
+        if (config('app.env') !== 'local') {
+            URL::forceScheme('https');
+        }
     }
 }
