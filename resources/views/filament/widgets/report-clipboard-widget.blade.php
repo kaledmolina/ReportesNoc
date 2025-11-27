@@ -79,7 +79,7 @@ class="flex flex-col md:flex-row items-center justify-between gap-4"
             >
                 <span x-show="!copied" class="flex items-center">
                     <x-heroicon-m-document-duplicate class="w-5 h-5 mr-2 -ml-1"/>
-                    Copiar al Portapapeles
+                    Copiar
                 </span>
                 <span x-show="copied" class="flex items-center" style="display: none;">
                     <x-heroicon-m-check class="w-5 h-5 mr-2 -ml-1"/>
