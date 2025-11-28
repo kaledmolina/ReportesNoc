@@ -224,13 +224,6 @@ class IncidentResource extends Resource
                             ->required()
                             ->disabled(),
 
-                        Forms\Components\Select::make('responsibles')
-                            ->label('Asignar Responsables (Tickets)')
-                            ->relationship('responsibles', 'name')
-                            ->multiple()
-                            ->searchable()
-                            ->preload()
-                            ->columnSpanFull(),
 
                         Forms\Components\Textarea::make('configuracion_especial')
                             ->label('Configuración Especial')

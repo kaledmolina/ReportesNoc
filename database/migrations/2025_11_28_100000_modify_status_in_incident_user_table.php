@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::table('incident_user', function (Blueprint $table) {
             // Change enum to string to allow any status (like 'escalated', 'resolved')
             // and remove the CHECK constraint in SQLite.
-            $table->string('status')->change();
+            $table->string('status')->default('pending')->change();
         });
     }
 

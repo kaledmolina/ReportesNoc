@@ -37,6 +37,10 @@ return new class extends Migration
         Schema::dropIfExists('incident_user');
         
         Schema::table('incidents', function (Blueprint $table) {
+            $table->dropUnique(['ticket_number']);
+        });
+
+        Schema::table('incidents', function (Blueprint $table) {
             $table->dropColumn('ticket_number');
         });
     }
