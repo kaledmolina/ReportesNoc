@@ -40,6 +40,17 @@ class UserResource extends Resource
                     ->dehydrated(fn ($state) => filled($state))
                     ->label('Contraseña'),
                 
+                Forms\Components\Select::make('city')
+                    ->label('Ciudad / Sede')
+                    ->options([
+                        'monteria' => 'Montería',
+                        'puerto_libertador' => 'Puerto Libertador',
+                        'valencia' => 'Valencia',
+                        'tierralta' => 'Tierralta',
+                        'san_pedro' => 'San Pedro',
+                    ])
+                    ->required(),
+
                 Forms\Components\Select::make('roles')
                     ->relationship('roles', 'name')
                     ->multiple()
@@ -60,6 +71,25 @@ class UserResource extends Resource
                 Tables\Columns\TextColumn::make('email')
                     ->searchable()
                     ->label('Correo'),
+
+                Tables\Columns\TextColumn::make('city')
+                    ->label('Ciudad / Sede')
+                    ->badge()
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                        'monteria' => 'Montería',
+                        'puerto_libertador' => 'Puerto Libertador',
+                        'valencia' => 'Valencia',
+                        'tierralta' => 'Tierralta',
+                        'san_pedro' => 'San Pedro',
+                        'regional' => 'Regional (General)',
+                        default => $state,
+                    })
+                    ->color(fn (string $state): string => match ($state) {
+                        'monteria' => 'success',
+                        'puerto_libertador' => 'info',
+                        'valencia', 'tierralta', 'san_pedro', 'regional' => 'warning',
+                        default => 'gray',
+                    }),
                 
                 Tables\Columns\TextColumn::make('roles.name')
                     ->badge()
