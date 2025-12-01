@@ -68,7 +68,7 @@ class AssignedIncidentResource extends Resource
                     // ACCIÓN: ATENDER
                     Tables\Actions\Action::make('atender')
                         ->label('Atender')
-                        ->icon('heroicon-o-play')
+                        ->icon('heroicon-o-check')
                         ->color('warning')
                         ->visible(function (Incident $record) {
                             // Visible si no está resuelto Y el usuario actual lo tiene en 'pending'
@@ -83,12 +83,7 @@ class AssignedIncidentResource extends Resource
                         })
                         ->requiresConfirmation()
                         ->action(function (Incident $record) {
-                            // Si estaba pendiente, pasa a en_proceso. Si ya estaba en_proceso, se mantiene.
-                            if ($record->estado === 'pendiente') {
-                                $record->update(['estado' => 'en_proceso']);
-                            }
-                            
-                            // Update pivot status
+                            // Solo actualizamos el pivot a accepted, NO cambiamos el estado del ticket aún
                             $record->responsibles()->updateExistingPivot(auth()->id(), [
                                 'status' => 'accepted',
                                 'accepted_at' => now(),
@@ -96,6 +91,34 @@ class AssignedIncidentResource extends Resource
 
                             \Filament\Notifications\Notification::make()
                                 ->title('Ticket aceptado')
+                                ->body('Ahora puedes iniciar el proceso de solución.')
+                                ->success()
+                                ->send();
+                        }),
+
+                    // ACCIÓN: INICIAR PROCESO
+                    Tables\Actions\Action::make('iniciar_proceso')
+                        ->label('Iniciar Proceso')
+                        ->icon('heroicon-o-play')
+                        ->color('info')
+                        ->visible(function (Incident $record) {
+                            // Visible si el estado es pendiente Y el usuario YA lo aceptó
+                            if ($record->estado !== 'pendiente') return false;
+
+                            $pivot = $record->responsibles()
+                                ->where('user_id', auth()->id())
+                                ->first()
+                                ?->pivot;
+
+                            return $pivot && $pivot->status === 'accepted';
+                        })
+                        ->requiresConfirmation()
+                        ->action(function (Incident $record) {
+                            $record->update(['estado' => 'en_proceso']);
+
+                            \Filament\Notifications\Notification::make()
+                                ->title('Proceso Iniciado')
+                                ->body('El ticket ahora está en proceso.')
                                 ->success()
                                 ->send();
                         }),
@@ -153,7 +176,17 @@ class AssignedIncidentResource extends Resource
                         ->label('Resolver')
                         ->icon('heroicon-o-check-circle')
                         ->color('success')
-                        ->visible(fn (Incident $record) => $record->estado === 'en_proceso')
+                        ->visible(function (Incident $record) {
+                            // Visible si está en proceso Y el usuario actual lo aceptó (es uno de los responsables activos)
+                            if ($record->estado !== 'en_proceso') return false;
+
+                            $pivot = $record->responsibles()
+                                ->where('user_id', auth()->id())
+                                ->first()
+                                ?->pivot;
+
+                            return $pivot && $pivot->status === 'accepted';
+                        })
                         ->form([
                             Forms\Components\FileUpload::make('photos_resolution')
                                 ->label('Evidencias de Solución')
@@ -171,15 +204,10 @@ class AssignedIncidentResource extends Resource
                             $record->update([
                                 'estado' => 'resuelto',
                                 'photos_resolution' => $data['photos_resolution'],
-                                // Podríamos guardar las notas en la descripción o en un campo nuevo, 
-                                // por ahora lo concatenamos a la descripción o usamos un campo de notas si existiera.
-                                // Vamos a concatenarlo a la descripción para no crear más campos por ahora,
-                                // o mejor aún, actualizar el pivot del usuario.
                             ]);
 
                             // Actualizar pivot del usuario
                             $record->responsibles()->updateExistingPivot(auth()->id(), [
-                                // 'status' => 'resolved', // No cambiamos el status porque el enum no lo permite
                                 'notes' => "Resuelto: " . $data['notas_resolucion'],
                                 'resolved_at' => now(),
                             ]);
