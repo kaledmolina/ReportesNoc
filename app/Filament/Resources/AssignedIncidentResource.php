@@ -65,11 +65,11 @@ class AssignedIncidentResource extends Resource
                 Tables\Actions\ActionGroup::make([
                     Tables\Actions\ViewAction::make(),
 
-                    // ACCIÓN: ATENDER
-                    Tables\Actions\Action::make('atender')
-                        ->label('Atender')
+                    // ACCIÓN: ACEPTAR
+                    Tables\Actions\Action::make('aceptar')
+                        ->label('Aceptar')
                         ->icon('heroicon-o-check')
-                        ->color('warning')
+                        ->color('success')
                         ->visible(function (Incident $record) {
                             // Visible si no está resuelto Y el usuario actual lo tiene en 'pending'
                             if ($record->estado === 'resuelto') return false;
@@ -90,17 +90,17 @@ class AssignedIncidentResource extends Resource
                             ]);
 
                             \Filament\Notifications\Notification::make()
-                                ->title('Ticket aceptado')
-                                ->body('Ahora puedes iniciar el proceso de solución.')
+                                ->title('Ticket Aceptado')
+                                ->body('Ahora puedes atender o escalar el ticket.')
                                 ->success()
                                 ->send();
                         }),
 
-                    // ACCIÓN: INICIAR PROCESO
-                    Tables\Actions\Action::make('iniciar_proceso')
-                        ->label('Iniciar Proceso')
+                    // ACCIÓN: ATENDER
+                    Tables\Actions\Action::make('atender')
+                        ->label('Atender')
                         ->icon('heroicon-o-play')
-                        ->color('info')
+                        ->color('primary')
                         ->visible(function (Incident $record) {
                             // Visible si el estado es pendiente Y el usuario YA lo aceptó
                             if ($record->estado !== 'pendiente') return false;
@@ -117,7 +117,7 @@ class AssignedIncidentResource extends Resource
                             $record->update(['estado' => 'en_proceso']);
 
                             \Filament\Notifications\Notification::make()
-                                ->title('Proceso Iniciado')
+                                ->title('Atendiendo Ticket')
                                 ->body('El ticket ahora está en proceso.')
                                 ->success()
                                 ->send();
@@ -129,8 +129,8 @@ class AssignedIncidentResource extends Resource
                         ->icon('heroicon-o-arrow-right-circle')
                         ->color('danger')
                         ->visible(function (Incident $record) {
-                            // Visible si no está resuelto Y el usuario actual YA lo aceptó
-                            if ($record->estado === 'resuelto') return false;
+                            // Visible si el estado es pendiente Y el usuario actual YA lo aceptó
+                            if ($record->estado !== 'pendiente') return false;
 
                             $pivot = $record->responsibles()
                                 ->where('user_id', auth()->id())
