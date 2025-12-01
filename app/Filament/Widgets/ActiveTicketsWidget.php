@@ -94,26 +94,34 @@ class ActiveTicketsWidget extends BaseWidget
                     ->modalHeading('Detalle del Incidente')
                     ->form(fn ($form) => IncidentResource::form($form)),
 
-                // ACCIÓN: ACEPTAR TICKET
-                Tables\Actions\Action::make('accept_ticket')
+                // ACCIÓN: ACEPTAR
+                Tables\Actions\Action::make('aceptar')
                     ->label('Aceptar')
-                    ->icon('heroicon-m-check')
+                    ->icon('heroicon-o-check')
                     ->color('success')
                     ->button()
                     ->visible(function (Incident $record) {
-                        $myPivot = $record->responsibles()
+                        // Visible si no está resuelto Y el usuario actual lo tiene en 'pending'
+                        if ($record->estado === 'resuelto') return false;
+                        
+                        $pivot = $record->responsibles()
                             ->where('user_id', auth()->id())
                             ->first()
                             ?->pivot;
-                        
-                        return $myPivot && $myPivot->status === 'pending';
+                            
+                        return $pivot && $pivot->status === 'pending';
                     })
+                    ->requiresConfirmation()
                     ->action(function (Incident $record) {
                         $record->responsibles()->updateExistingPivot(auth()->id(), [
                             'status' => 'accepted',
                             'accepted_at' => now(),
                         ]);
-                        Notification::make()->title('Ticket Aceptado')->success()->send();
+                        Notification::make()
+                            ->title('Ticket Aceptado')
+                            ->body('Ahora puedes atender o escalar el ticket.')
+                            ->success()
+                            ->send();
                     }),
 
                 // ACCIÓN: RECHAZAR TICKET
@@ -145,42 +153,99 @@ class ActiveTicketsWidget extends BaseWidget
                         Notification::make()->title('Ticket Rechazado')->warning()->send();
                     }),
 
-                // ACCIÓN: ATENDER (Solo si ya acepté Y soy el último responsable)
-                Tables\Actions\Action::make('iniciar_proceso')
+                // ACCIÓN: ATENDER
+                Tables\Actions\Action::make('atender')
                     ->label('Atender')
-                    ->icon('heroicon-m-play')
-                    ->color('warning')
+                    ->icon('heroicon-o-play')
+                    ->color('primary')
                     ->button()
                     ->visible(function (Incident $record) {
-                        // 1. Debe estar aceptado por mí
-                        $myPivot = $record->responsibles()
+                        // Visible si el estado es pendiente Y el usuario YA lo aceptó
+                        if ($record->estado !== 'pendiente') return false;
+
+                        $pivot = $record->responsibles()
                             ->where('user_id', auth()->id())
                             ->first()
                             ?->pivot;
-                        
-                        if (!$myPivot || $myPivot->status !== 'accepted') {
-                            return false;
-                        }
 
-                        // 2. Debo ser el ÚLTIMO asignado (responsable actual)
-                        $lastResponsible = $record->responsibles()
-                            ->orderByPivot('created_at', 'desc')
-                            ->first();
-                        
-                        return $lastResponsible && $lastResponsible->id === auth()->id() && $record->estado === 'pendiente';
+                        return $pivot && $pivot->status === 'accepted';
                     })
+                    ->requiresConfirmation()
                     ->action(function (Incident $record) {
                         $record->update(['estado' => 'en_proceso']);
-                        Notification::make()->title('Caso en seguimiento')->warning()->send();
+                        Notification::make()
+                            ->title('Atendiendo Ticket')
+                            ->body('El ticket ahora está en proceso.')
+                            ->success()
+                            ->send();
                     }),
 
-                // ACCIÓN: FINALIZAR
-                Tables\Actions\Action::make('finalizar_caso')
-                    ->label('Finalizar')
-                    ->icon('heroicon-m-check-badge')
+                // ACCIÓN: ESCALAR
+                Tables\Actions\Action::make('escalar')
+                    ->label('Escalar')
+                    ->icon('heroicon-o-arrow-right-circle')
+                    ->color('danger')
+                    ->button()
+                    ->visible(function (Incident $record) {
+                        // Visible si el estado es pendiente Y el usuario actual YA lo aceptó
+                        if ($record->estado !== 'pendiente') return false;
+
+                        $pivot = $record->responsibles()
+                            ->where('user_id', auth()->id())
+                            ->first()
+                            ?->pivot;
+
+                        return $pivot && $pivot->status === 'accepted';
+                    })
+                    ->form([
+                        Forms\Components\Select::make('nuevo_responsable')
+                            ->label('Escalar a:')
+                            ->options(\App\Models\User::where('id', '!=', auth()->id())->pluck('name', 'id'))
+                            ->required()
+                            ->searchable(),
+                        Forms\Components\Textarea::make('motivo')
+                            ->label('Motivo del escalamiento')
+                            ->required(),
+                    ])
+                    ->action(function (Incident $record, array $data) {
+                        // 1. Update current user status to 'escalated'
+                        $record->responsibles()->updateExistingPivot(auth()->id(), [
+                            'status' => 'escalated',
+                            'notes' => "Escalado por " . auth()->user()->name . ": " . $data['motivo'],
+                            'escalated_at' => now(),
+                        ]);
+
+                        // 2. Add new user
+                        $record->responsibles()->attach($data['nuevo_responsable'], [
+                            'status' => 'pending',
+                            'assigned_by' => auth()->id(),
+                            'assigned_at' => now(),
+                        ]);
+
+                        Notification::make()
+                            ->title('Ticket Escalado')
+                            ->body('El ticket ha sido reasignado correctamente.')
+                            ->success()
+                            ->send();
+                    }),
+
+                // ACCIÓN: RESOLVER
+                Tables\Actions\Action::make('resolver')
+                    ->label('Resolver')
+                    ->icon('heroicon-o-check-circle')
                     ->color('success')
                     ->button()
-                    ->visible(fn (Incident $record) => $record->estado === 'en_proceso')
+                    ->visible(function (Incident $record) {
+                        // Visible si está en proceso Y el usuario actual lo aceptó
+                        if ($record->estado !== 'en_proceso') return false;
+
+                        $pivot = $record->responsibles()
+                            ->where('user_id', auth()->id())
+                            ->first()
+                            ?->pivot;
+
+                        return $pivot && $pivot->status === 'accepted';
+                    })
                     ->form([
                         Forms\Components\FileUpload::make('photos_resolution')
                             ->label('Evidencias de Solución')
@@ -202,12 +267,15 @@ class ActiveTicketsWidget extends BaseWidget
 
                         // Actualizar pivot del usuario
                         $record->responsibles()->updateExistingPivot(auth()->id(), [
-                            // 'status' => 'resolved', // No cambiamos el status porque el enum no lo permite
                             'notes' => "Resuelto: " . $data['notas_resolucion'],
                             'resolved_at' => now(),
                         ]);
 
-                        Notification::make()->title('Incidente Solucionado')->success()->send();
+                        Notification::make()
+                            ->title('Ticket Resuelto')
+                            ->body('El incidente ha sido marcado como resuelto.')
+                            ->success()
+                            ->send();
                     }),
             ]);
     }
