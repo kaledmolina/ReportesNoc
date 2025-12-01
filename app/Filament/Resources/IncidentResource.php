@@ -105,7 +105,7 @@ class IncidentResource extends Resource
                             ->options(function (Forms\Get $get) {
                                 $city = $get('ciudad_selector');
                                 
-                                if ($city === 'puerto_libertador') {
+                                if ($city === 'puerto_libertador' || $city === 'regional') {
                                     return [
                                         'falla_tv' => '📺 Servidor de TV / Canales',
                                         'internet_falla_general' => '🌐 Internet Falla General',
@@ -119,6 +119,7 @@ class IncidentResource extends Resource
                                     'falla_tv' => '📺 Servidor de TV / Canales',
                                     'internet_falla_general' => '🌐 Internet Falla General',
                                     'internet_falla_especifica' => '👤 Internet Falla Usuario Específico',
+                                    'otros' => '📝 Otros (Incidentes Varios)',
                                 ];
                             })
                             ->required()
