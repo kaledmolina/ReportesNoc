@@ -65,7 +65,7 @@ class Incident extends Model
     public function responsibles(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
     {
         return $this->belongsToMany(User::class, 'incident_user')
-            ->withPivot(['status', 'assigned_by', 'notes', 'assigned_at', 'accepted_at', 'rejected_at'])
+            ->withPivot(['status', 'assigned_by', 'notes', 'assigned_at', 'accepted_at', 'rejected_at', 'escalated_at', 'resolved_at'])
             ->withTimestamps();
     }
 
