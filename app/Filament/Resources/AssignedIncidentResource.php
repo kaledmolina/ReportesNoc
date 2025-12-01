@@ -70,19 +70,32 @@ class AssignedIncidentResource extends Resource
                         ->label('Atender')
                         ->icon('heroicon-o-play')
                         ->color('warning')
-                        ->visible(fn (Incident $record) => $record->estado === 'pendiente')
+                        ->visible(function (Incident $record) {
+                            // Visible si no está resuelto Y el usuario actual lo tiene en 'pending'
+                            if ($record->estado === 'resuelto') return false;
+                            
+                            $pivot = $record->responsibles()
+                                ->where('user_id', auth()->id())
+                                ->first()
+                                ?->pivot;
+                                
+                            return $pivot && $pivot->status === 'pending';
+                        })
                         ->requiresConfirmation()
                         ->action(function (Incident $record) {
-                            $record->update(['estado' => 'en_proceso']);
+                            // Si estaba pendiente, pasa a en_proceso. Si ya estaba en_proceso, se mantiene.
+                            if ($record->estado === 'pendiente') {
+                                $record->update(['estado' => 'en_proceso']);
+                            }
                             
-                            // Update pivot status if needed
+                            // Update pivot status
                             $record->responsibles()->updateExistingPivot(auth()->id(), [
                                 'status' => 'accepted',
                                 'accepted_at' => now(),
                             ]);
 
                             \Filament\Notifications\Notification::make()
-                                ->title('Ticket en proceso')
+                                ->title('Ticket aceptado')
                                 ->success()
                                 ->send();
                         }),
@@ -92,7 +105,17 @@ class AssignedIncidentResource extends Resource
                         ->label('Escalar (Reasignar)')
                         ->icon('heroicon-o-arrow-right-circle')
                         ->color('danger')
-                        ->visible(fn (Incident $record) => $record->estado === 'pendiente') // Solo si está pendiente (no resuelto ni en proceso)
+                        ->visible(function (Incident $record) {
+                            // Visible si no está resuelto Y el usuario actual YA lo aceptó
+                            if ($record->estado === 'resuelto') return false;
+
+                            $pivot = $record->responsibles()
+                                ->where('user_id', auth()->id())
+                                ->first()
+                                ?->pivot;
+
+                            return $pivot && $pivot->status === 'accepted';
+                        })
                         ->form([
                             Forms\Components\Select::make('nuevo_responsable')
                                 ->label('Escalar a:')
@@ -108,7 +131,7 @@ class AssignedIncidentResource extends Resource
                             $record->responsibles()->updateExistingPivot(auth()->id(), [
                                 'status' => 'escalated',
                                 'notes' => "Escalado por " . auth()->user()->name . ": " . $data['motivo'],
-                                'escalated_at' => now(), // Asegúrate de tener esta columna en la migración o usa updated_at
+                                'escalated_at' => now(),
                             ]);
 
                             // 2. Add new user
