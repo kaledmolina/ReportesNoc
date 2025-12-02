@@ -164,6 +164,27 @@ class AssignedIncidentResource extends Resource
                                 'assigned_at' => now(),
                             ]);
 
+                            // Borrar notificación del usuario actual
+                            auth()->user()->notifications()
+                                ->where('data', 'like', '%ticket_number":"' . $record->ticket_number . '"%')
+                                ->orWhere('data', 'like', '%tickets/' . $record->id . '/edit%')
+                                ->delete();
+
+                            // Crear notificación para el nuevo responsable
+                            $newResponsible = \App\Models\User::find($data['nuevo_responsable']);
+                            if ($newResponsible) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('Nuevo Ticket Asignado')
+                                    ->body("Se te ha asignado el ticket #{$record->ticket_number}")
+                                    ->warning()
+                                    ->actions([
+                                        \Filament\Notifications\Actions\Action::make('ver')
+                                            ->button()
+                                            ->url(\Filament\Facades\Filament::getPanel('admin')->getUrl()),
+                                    ])
+                                    ->sendToDatabase($newResponsible);
+                            }
+
                             \Filament\Notifications\Notification::make()
                                 ->title('Ticket Escalado')
                                 ->body('El ticket ha sido reasignado correctamente.')

@@ -147,6 +147,13 @@ class ActiveTicketsWidget extends BaseWidget
                                 'rejected_at' => now(),
                                 'notes' => $data['notes'],
                             ]);
+
+                            // Borrar notificación
+                            auth()->user()->notifications()
+                                ->where('data', 'like', '%ticket_number":"' . $record->ticket_number . '"%')
+                                ->orWhere('data', 'like', '%tickets/' . $record->id . '/edit%')
+                                ->delete();
+
                             Notification::make()->title('Ticket Rechazado')->warning()->send();
                         }),
 
@@ -213,6 +220,27 @@ class ActiveTicketsWidget extends BaseWidget
                                 'assigned_at' => now(),
                             ]);
 
+                            // Borrar notificación del usuario actual
+                            auth()->user()->notifications()
+                                ->where('data', 'like', '%ticket_number":"' . $record->ticket_number . '"%')
+                                ->orWhere('data', 'like', '%tickets/' . $record->id . '/edit%')
+                                ->delete();
+
+                            // Crear notificación para el nuevo responsable
+                            $newResponsible = \App\Models\User::find($data['nuevo_responsable']);
+                            if ($newResponsible) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('Nuevo Ticket Asignado')
+                                    ->body("Se te ha asignado el ticket #{$record->ticket_number}")
+                                    ->warning()
+                                    ->actions([
+                                        \Filament\Notifications\Actions\Action::make('ver')
+                                            ->button()
+                                            ->url(\Filament\Facades\Filament::getPanel('admin')->getUrl()),
+                                    ])
+                                    ->sendToDatabase($newResponsible);
+                            }
+
                             Notification::make()
                                 ->title('Ticket Escalado')
                                 ->body('El ticket ha sido reasignado correctamente.')
@@ -258,6 +286,12 @@ class ActiveTicketsWidget extends BaseWidget
                                 'notes' => "Resuelto: " . $data['notas_resolucion'],
                                 'resolved_at' => now(),
                             ]);
+
+                            // Borrar notificación
+                            auth()->user()->notifications()
+                                ->where('data', 'like', '%ticket_number":"' . $record->ticket_number . '"%')
+                                ->orWhere('data', 'like', '%tickets/' . $record->id . '/edit%')
+                                ->delete();
 
                             Notification::make()
                                 ->title('Ticket Resuelto')

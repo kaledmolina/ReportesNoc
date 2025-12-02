@@ -478,7 +478,7 @@ class IncidentResource extends Resource
                                         ->actions([
                                             \Filament\Notifications\Actions\Action::make('ver')
                                                 ->button()
-                                                ->url(IncidentResource::getUrl('edit', ['record' => $record])),
+                                                ->url(\Filament\Facades\Filament::getPanel('admin')->getUrl()),
                                         ])
                                         ->sendToDatabase($user);
                                 }
@@ -522,7 +522,6 @@ class IncidentResource extends Resource
             'index' => Pages\ListIncidents::route('/'),
             'create' => Pages\CreateIncident::route('/create'),
             'view' => Pages\ViewIncident::route('/{record}'),
-            'edit' => Pages\EditIncident::route('/{record}/edit'),
         ];
     }
 

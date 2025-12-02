@@ -34,7 +34,7 @@ class RegenerateNotifications extends Command
                         ->actions([
                             \Filament\Notifications\Actions\Action::make('ver')
                                 ->button()
-                                ->url(\App\Filament\Resources\IncidentResource::getUrl('edit', ['record' => $incident])),
+                                ->url(\Filament\Facades\Filament::getPanel('admin')->getUrl()),
                         ])
                         ->sendToDatabase($user);
                     $count++;
