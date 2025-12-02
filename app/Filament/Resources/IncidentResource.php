@@ -278,6 +278,19 @@ class IncidentResource extends Resource
                             ])
                             ->hidden(fn (?Incident $record) => $record === null)
                             ->columnSpanFull(),
+
+                        Forms\Components\Section::make('Chat del Ticket')
+                            ->schema([
+                                Forms\Components\ViewField::make('chat')
+                                    ->view('filament.forms.components.ticket-chat-wrapper')
+                                    ->viewData([
+                                        'incident' => $form->getRecord(),
+                                    ])
+                                    ->hiddenLabel()
+                                    ->columnSpanFull(),
+                            ])
+                            ->visible(fn (?Incident $record) => $record !== null)
+                            ->collapsible(),
                     ])
             ]);
     }
