@@ -212,6 +212,12 @@ class AssignedIncidentResource extends Resource
                                 'resolved_at' => now(),
                             ]);
 
+                            // Borrar notificación asociada a este ticket
+                            auth()->user()->notifications()
+                                ->where('data', 'like', '%ticket_number":"' . $record->ticket_number . '"%')
+                                ->orWhere('data', 'like', '%tickets/' . $record->id . '/edit%')
+                                ->delete();
+
                             \Filament\Notifications\Notification::make()
                                 ->title('Ticket Resuelto')
                                 ->body('El incidente ha sido marcado como resuelto.')
