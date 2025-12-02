@@ -154,6 +154,10 @@ class ReportClipboardWidget extends Widget
         if ($report->novedades_servidores) { $text .= "Infraestructura: {$report->novedades_servidores}\n\n"; }
 
         foreach($report->incidents as $incident) {
+            if (!str_contains(strtolower($incident->descripcion ?? ''), 'desde reporte')) {
+                continue;
+            }
+
             $icon = match($incident->estado) { 'resuelto' => '✅', 'en_proceso' => '🟠', default => '🔴' };
 
             if ($incident->tipo_falla === 'falla_olt') {
