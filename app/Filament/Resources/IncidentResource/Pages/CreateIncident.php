@@ -107,9 +107,14 @@ class CreateIncident extends CreateRecord
                 ->actions([
                     \Filament\Notifications\Actions\Action::make('ver')
                         ->button()
-                        ->url(IncidentResource::getUrl('edit', ['record' => $record])),
+                        ->url(\Filament\Facades\Filament::getPanel('admin')->getUrl()),
                 ])
                 ->sendToDatabase($user);
         }
+    }
+
+    protected function getRedirectUrl(): string
+    {
+        return $this->getResource()::getUrl('index');
     }
 }
