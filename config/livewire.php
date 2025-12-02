@@ -14,7 +14,7 @@ return [
     */
 
     'class_namespace' => 'App\\Livewire',
-    'asset_url' => 'https://backoffice.intalnet.com',
+    'asset_url' => env('LIVEWIRE_ASSET_URL', null),
 
     /*
     |---------------------------------------------------------------------------
