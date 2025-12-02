@@ -31,6 +31,12 @@ class Report extends Model
 
     protected static function booted()
     {
+        static::saving(function ($report) {
+            $total = $report->tv_canales_total ?? 92;
+            $offline = count($report->tv_canales_offline ?? []);
+            $report->tv_canales_activos = $total - $offline;
+        });
+
         static::deleting(function ($report) {
             if ($report->incidents()->exists()) {
                 \Filament\Notifications\Notification::make()

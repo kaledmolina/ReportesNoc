@@ -460,8 +460,8 @@ class ReportResource extends Resource
                     ->icon('heroicon-o-tv')
                     ->collapsible()
                     ->schema([
-                        Forms\Components\Grid::make(2)->schema([
-                            Forms\Components\TextInput::make('tv_canales_activos')->label('Canales Activos')->default(90)->required(),
+                        Forms\Components\Grid::make(1)->schema([
+                            // Forms\Components\TextInput::make('tv_canales_activos')->label('Canales Activos')->default(90)->required(),
                             Forms\Components\TextInput::make('tv_canales_total')->label('Total Grilla')->default(92)->readOnly(),
                         ]),
                         Forms\Components\TagsInput::make('tv_canales_offline')
