@@ -203,9 +203,9 @@ class ReportClipboardWidget extends Widget
             }
         }
 
-        // Tickets generados hoy
-        $ticketsHoy = Incident::whereDate('created_at', Carbon::today())->count();
-        $text .= "\nTickets generados hoy: {$ticketsHoy}\n";
+        // Tickets generados en este reporte
+        $ticketsHoy = $report->incidents->count();
+        $text .= "\nTickets generados en este reporte: {$ticketsHoy}\n";
 
         // Adjuntos (Fotos)
         if (!empty($report->photos)) {
