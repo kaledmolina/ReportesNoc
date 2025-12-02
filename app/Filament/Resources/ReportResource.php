@@ -200,28 +200,48 @@ class ReportResource extends Resource
 
                                                 Forms\Components\TextInput::make('detalle')->label('Observación')->placeholder('Falla...')->columnSpan(12),
 
+                                                Forms\Components\Hidden::make('responsible_id'),
+
                                                 Forms\Components\Actions::make([
                                                     Forms\Components\Actions\Action::make('generar_ticket')
                                                         ->label('Generar Ticket')
                                                         ->icon('heroicon-m-ticket')
                                                         ->color('warning')
-                                                        ->action(function (Forms\Get $get, Forms\Set $set, $livewire) {
+                                                        ->form([
+                                                            Forms\Components\Select::make('responsible_id')
+                                                                ->label('Asignar Responsable')
+                                                                ->options(\App\Models\User::all()->pluck('name', 'id'))
+                                                                ->required()
+                                                                ->searchable()
+                                                                ->preload(),
+                                                        ])
+                                                        ->action(function (array $data, Forms\Get $get, Forms\Set $set, $livewire) {
                                                             $tarjeta = $get('tarjeta');
                                                             $puertos = $get('puertos') ?? [];
+                                                            $responsibleId = $data['responsible_id'];
+
                                                             if (!$tarjeta) { Notification::make()->title('Selecciona tarjeta')->danger()->send(); return; }
 
                                                             if ($livewire instanceof \Filament\Resources\Pages\CreateRecord) {
                                                                 Notification::make()->title('Ticket en Cola')->body('Se creará al guardar.')->success()->send();
                                                                 $set('incidente_vinculado', true);
+                                                                $set('responsible_id', $responsibleId);
                                                             } else {
                                                                 $reporte = $livewire->record; 
-                                                                Incident::create([
+                                                                $incident = Incident::create([
                                                                     'report_id' => $reporte->id, 'tipo_falla' => 'falla_olt', 'olt_nombre' => 'Main',
                                                                     'olt_afectacion' => [['tarjeta' => $tarjeta, 'puertos' => $puertos]],
                                                                     'barrios' => 'N/A (Auto)', 'estado' => 'pendiente',
                                                                     'descripcion' => 'Generado manualmente.',
                                                                     'identificador' => "OLT Main - T{$tarjeta}"
                                                                 ]);
+                                                                
+                                                                $incident->responsibles()->attach($responsibleId, [
+                                                                    'status' => 'pending',
+                                                                    'assigned_by' => auth()->id(),
+                                                                    'assigned_at' => now(),
+                                                                ]);
+
                                                                 Notification::make()->title('Ticket Creado')->success()->send();
                                                                 $set('incidente_vinculado', true);
                                                             }
@@ -368,18 +388,41 @@ class ReportResource extends Resource
 
                                                 Forms\Components\TextInput::make('detalle')->label('Observación')->placeholder('Falla...')->columnSpan(12),
                                                 
+                                                Forms\Components\Hidden::make('responsible_id'),
+
                                                 Forms\Components\Actions::make([
-                                                    Forms\Components\Actions\Action::make('generar_ticket_backup')->label('Generar Ticket')->icon('heroicon-m-ticket')->color('warning')->action(function (Forms\Get $get, Forms\Set $set, $livewire) {
-                                                        if ($livewire instanceof \Filament\Resources\Pages\CreateRecord) {
-                                                            Notification::make()->title('Ticket en Cola')->body('Se creará al guardar.')->success()->send();
-                                                            $set('incidente_vinculado', true);
-                                                        } else {
-                                                            $tarjeta = $get('tarjeta'); $puertos = $get('puertos') ?? [];
-                                                            Incident::create([ 'report_id' => $livewire->record->id, 'tipo_falla' => 'falla_olt', 'olt_nombre' => 'Backup', 'olt_afectacion' => [['tarjeta' => $tarjeta, 'puertos' => $puertos]], 'barrios' => 'N/A', 'estado' => 'pendiente', 'descripcion' => 'Auto-generado OLT Backup.', 'identificador' => "OLT Backup - T{$tarjeta}" ]);
-                                                            Notification::make()->title('Ticket Creado')->success()->send();
-                                                            $set('incidente_vinculado', true);
-                                                        }
-                                                    }),
+                                                    Forms\Components\Actions\Action::make('generar_ticket_backup')
+                                                        ->label('Generar Ticket')
+                                                        ->icon('heroicon-m-ticket')
+                                                        ->color('warning')
+                                                        ->form([
+                                                            Forms\Components\Select::make('responsible_id')
+                                                                ->label('Asignar Responsable')
+                                                                ->options(\App\Models\User::all()->pluck('name', 'id'))
+                                                                ->required()
+                                                                ->searchable()
+                                                                ->preload(),
+                                                        ])
+                                                        ->action(function (array $data, Forms\Get $get, Forms\Set $set, $livewire) {
+                                                            $responsibleId = $data['responsible_id'];
+                                                            if ($livewire instanceof \Filament\Resources\Pages\CreateRecord) {
+                                                                Notification::make()->title('Ticket en Cola')->body('Se creará al guardar.')->success()->send();
+                                                                $set('incidente_vinculado', true);
+                                                                $set('responsible_id', $responsibleId);
+                                                            } else {
+                                                                $tarjeta = $get('tarjeta'); $puertos = $get('puertos') ?? [];
+                                                                $incident = Incident::create([ 'report_id' => $livewire->record->id, 'tipo_falla' => 'falla_olt', 'olt_nombre' => 'Backup', 'olt_afectacion' => [['tarjeta' => $tarjeta, 'puertos' => $puertos]], 'barrios' => 'N/A', 'estado' => 'pendiente', 'descripcion' => 'Auto-generado OLT Backup.', 'identificador' => "OLT Backup - T{$tarjeta}" ]);
+                                                                
+                                                                $incident->responsibles()->attach($responsibleId, [
+                                                                    'status' => 'pending',
+                                                                    'assigned_by' => auth()->id(),
+                                                                    'assigned_at' => now(),
+                                                                ]);
+
+                                                                Notification::make()->title('Ticket Creado')->success()->send();
+                                                                $set('incidente_vinculado', true);
+                                                            }
+                                                        }),
                                                 ])
                                                 ->visible(function (Forms\Get $get) {
                                                     if ($get('estado') === true) return false;
@@ -436,18 +479,36 @@ class ReportResource extends Resource
                         Forms\Components\Actions::make([
                             Forms\Components\Actions\Action::make('generar_ticket_tv')
                                 ->label('Generar Ticket TV')->icon('heroicon-m-ticket')->color('warning')
-                                ->action(function (Forms\Get $get, Forms\Set $set, $livewire) {
+                                ->form([
+                                    Forms\Components\Select::make('responsible_id')
+                                        ->label('Asignar Responsable')
+                                        ->options(\App\Models\User::all()->pluck('name', 'id'))
+                                        ->required()
+                                        ->searchable()
+                                        ->preload(),
+                                ])
+                                ->action(function (array $data, Forms\Get $get, Forms\Set $set, $livewire) {
                                     $canales = $get('tv_canales_offline');
+                                    $responsibleId = $data['responsible_id'];
+
                                     if (empty($canales)) { Notification::make()->title('Selecciona canales')->danger()->send(); return; }
 
                                     if ($livewire instanceof \Filament\Resources\Pages\CreateRecord) {
                                         Notification::make()->title('Ticket en Cola')->body('Se creará al guardar.')->success()->send();
                                         $set('tv_ticket_en_cola', true);
+                                        $set('tv_responsible_id', $responsibleId);
                                     } else {
                                         $reporte = $livewire->record;
-                                        Incident::create([ 'report_id' => $reporte->id, 'tipo_falla' => 'falla_tv', 'tv_canales_afectados' => $canales, 'barrios' => 'General', 'estado' => 'pendiente', 'descripcion' => 'Falla TV Manual.', 'identificador' => 'Falla TV' ]);
+                                        $incident = Incident::create([ 'report_id' => $reporte->id, 'tipo_falla' => 'falla_tv', 'tv_canales_afectados' => $canales, 'barrios' => 'General', 'estado' => 'pendiente', 'descripcion' => 'Falla TV Manual.', 'identificador' => 'Falla TV' ]);
+                                        
+                                        $incident->responsibles()->attach($responsibleId, [
+                                            'status' => 'pending',
+                                            'assigned_by' => auth()->id(),
+                                            'assigned_at' => now(),
+                                        ]);
+
                                         Notification::make()->title('Ticket TV Creado')->success()->send();
-                                        $set('tv_ticket_existente', true); $livewire->refresh();
+                                        $set('tv_ticket_existente', true); 
                                     }
                                 }),
                         ])->visible(fn (Forms\Get $get) => !empty($get('tv_canales_offline')) && !$get('tv_ticket_existente') && !$get('tv_ticket_en_cola')),
@@ -457,6 +518,7 @@ class ReportResource extends Resource
                         
                         Forms\Components\Hidden::make('tv_ticket_existente')->default(false)->dehydrated(false),
                         Forms\Components\Hidden::make('tv_ticket_en_cola')->default(false)->dehydrated(false),
+                        Forms\Components\Hidden::make('tv_responsible_id'),
 
                         Forms\Components\Textarea::make('tv_observaciones')->label('Observaciones TV')->rows(2),
                     ]),
