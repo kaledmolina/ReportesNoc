@@ -204,7 +204,9 @@ class ReportClipboardWidget extends Widget
         }
 
         // Tickets generados en este reporte
-        $ticketsHoy = $report->incidents->count();
+        $ticketsHoy = $report->incidents->filter(function ($incident) {
+            return str_contains(strtolower($incident->descripcion), 'desde reporte');
+        })->count();
         $text .= "\nTickets generados en este reporte: {$ticketsHoy}\n";
 
         // Adjuntos (Fotos)
