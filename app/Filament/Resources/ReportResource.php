@@ -94,7 +94,7 @@ class ReportResource extends Resource
                                     ])
                                 ])
                                 ->default([
-                                    ['nombre' => 'Ufinet', 'estado' => true], ['nombre' => 'Cirion', 'estado' => true], ['nombre' => 'InterNexa', 'estado' => true],
+                                    ['nombre' => 'Ufinet', 'estado' => true], ['nombre' => 'Cirion', 'estado' => true], ['nombre' => 'Somos', 'estado' => true],
                                 ])
                                 ->collapsible()
                                 ->itemLabel(fn (array $state): ?string => $state['nombre'] ?? null),
