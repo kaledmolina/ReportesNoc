@@ -6,6 +6,8 @@ use App\Models\Report;
 use App\Helpers\CanalesHelper; 
 use Filament\Widgets\Widget;
 use Carbon\Carbon;
+use App\Models\Incident;
+use Illuminate\Support\Facades\Storage;
 
 class ReportClipboardWidget extends Widget
 {
@@ -198,6 +200,25 @@ class ReportClipboardWidget extends Widget
 
             if (!empty($resumen)) {
                 $text .= "\nResumen: " . implode(', ', $resumen);
+            }
+        }
+
+        // Tickets generados hoy
+        $ticketsHoy = Incident::whereDate('created_at', Carbon::today())->count();
+        $text .= "\nTickets generados hoy: {$ticketsHoy}\n";
+
+        // Adjuntos (Fotos)
+        if (!empty($report->photos)) {
+            $text .= "\nAdjuntos:\n";
+            foreach ($report->photos as $photo) {
+                $url = Storage::url($photo);
+                // Si usas un driver como S3 o similar que genere URLs completas, esto está bien.
+                // Si es local, Storage::url devuelve una ruta relativa (/storage/...), 
+                // así que podrías querer anteponer el APP_URL si es necesario para compartir externamente.
+                // Para este caso asumiremos que Storage::url es suficiente o que el cliente lo maneja.
+                // Para asegurar URL completa en local/producción si es 'public':
+                $fullUrl = asset($url); 
+                $text .= "- {$fullUrl}\n";
             }
         }
 
