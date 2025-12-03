@@ -62,6 +62,7 @@
             <div class="mt-4 p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Motivo del rechazo</label>
                 <textarea wire:model="rejectReason" class="w-full rounded-lg border-gray-300 dark:bg-gray-900 dark:border-gray-600" rows="3"></textarea>
+                @error('rejectReason') <span class="text-xs text-red-600 dark:text-red-400">{{ $message }}</span> @enderror
                 <div class="flex justify-end gap-2 mt-2">
                     <x-filament::button wire:click="$set('showRejectForm', false)" color="gray" size="sm">Cancelar</x-filament::button>
                     <x-filament::button wire:click="reject" color="danger" size="sm">Confirmar Rechazo</x-filament::button>
@@ -80,10 +81,12 @@
                                 <option value="{{ $id }}">{{ $name }}</option>
                             @endforeach
                         </select>
+                        @error('escalateTo') <span class="text-xs text-red-600 dark:text-red-400">{{ $message }}</span> @enderror
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Motivo</label>
                         <textarea wire:model="escalateReason" class="w-full rounded-lg border-gray-300 dark:bg-gray-900 dark:border-gray-600" rows="2"></textarea>
+                        @error('escalateReason') <span class="text-xs text-red-600 dark:text-red-400">{{ $message }}</span> @enderror
                     </div>
                     <div class="flex justify-end gap-2">
                         <x-filament::button wire:click="$set('showEscalateForm', false)" color="gray" size="sm">Cancelar</x-filament::button>
@@ -99,10 +102,12 @@
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Notas de Resolución</label>
                         <textarea wire:model="resolveNotes" class="w-full rounded-lg border-gray-300 dark:bg-gray-900 dark:border-gray-600" rows="3"></textarea>
+                        @error('resolveNotes') <span class="text-xs text-red-600 dark:text-red-400">{{ $message }}</span> @enderror
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Evidencias (Fotos)</label>
                         <input type="file" wire:model="resolvePhotos" multiple class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100 dark:file:bg-gray-700 dark:file:text-gray-200">
+                        @error('resolvePhotos.*') <span class="text-xs text-red-600 dark:text-red-400">{{ $message }}</span> @enderror
                     </div>
                     <div class="flex justify-end gap-2">
                         <x-filament::button wire:click="$set('showResolveForm', false)" color="gray" size="sm">Cancelar</x-filament::button>
