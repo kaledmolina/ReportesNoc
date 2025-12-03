@@ -4,6 +4,15 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Backoffice Intalnet</title>
+    <meta property="og:site_name" content="Backoffice Intalnet" />
+    <meta property="og:title" content="Backoffice Intalnet" />
+    <meta property="og:description" content="Ingresa para gestionar reportes y monitorear la red de manera eficiente." />
+    <meta property="og:url" content="{{ url('/') }}" />
+    <meta property="og:type" content="website" />
+    
+    <meta property="og:image" content="{{ asset('images/logo.png') }}" />
+    <meta property="og:image:width" content="300" />
+    <meta property="og:image:height" content="300" />
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=outfit:300,400,500,600,700" rel="stylesheet" />
     @vite(['resources/css/app.css', 'resources/js/app.js'])
