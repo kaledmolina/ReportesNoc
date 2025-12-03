@@ -21,7 +21,7 @@ class IncidentResource extends Resource
     protected static ?string $navigationIcon = 'heroicon-o-exclamation-triangle';
     protected static ?string $navigationGroup = 'Tickets';
     protected static ?string $navigationLabel = 'Tickets Creados';
-    protected static ?string $modelLabel = 'Crear Tickets de Incidente';
+    protected static ?string $modelLabel = 'Tickets de Incidente';
     protected static ?int $navigationSort = 1;
 
     public static function form(Form $form): Form
