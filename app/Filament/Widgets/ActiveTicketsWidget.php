@@ -94,6 +94,16 @@ class ActiveTicketsWidget extends BaseWidget
                         ->modalHeading('Detalle del Incidente')
                         ->form(fn ($form) => IncidentResource::form($form)),
 
+                    // ACCIÓN: GESTIONAR (CHAT + ESTADOS)
+                    Tables\Actions\Action::make('gestionar')
+                        ->label('Gestionar')
+                        ->icon('heroicon-o-chat-bubble-left-right')
+                        ->color('info')
+                        ->modalHeading(fn (Incident $record) => "Gestionar Ticket #{$record->ticket_number}")
+                        ->modalContent(fn (Incident $record) => view('filament.pages.actions.ticket-chat-modal', ['record' => $record]))
+                        ->modalSubmitAction(false)
+                        ->modalCancelAction(false),
+
                     // ACCIÓN: ACEPTAR
                     Tables\Actions\Action::make('aceptar')
                         ->label('Aceptar')
