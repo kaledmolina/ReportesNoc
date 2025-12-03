@@ -2,701 +2,296 @@
 
 namespace App\Filament\Resources;
 
-use App\Filament\Resources\ReportResource\Pages;
-use App\Models\Report;
+use App\Filament\Resources\IncidentResource\Pages;
+use App\Filament\Resources\IncidentResource\RelationManagers;
 use App\Models\Incident;
-use App\Helpers\CanalesHelper;
+use App\Models\Report;
+use App\Helpers\CanalesHelper; // <--- Importamos la lista de canales
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Filament\Notifications\Notification;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Validation\Rule;
 
-class ReportResource extends Resource
+class IncidentResource extends Resource
 {
-    protected static ?string $model = Report::class;
-    protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-list';
-    protected static ?string $navigationLabel = 'Reportes NOC Monteria';
-    protected static ?string $modelLabel = 'Reporte Diario';
+    protected static ?string $model = Incident::class;
+    protected static ?string $navigationIcon = 'heroicon-o-exclamation-triangle';
+    protected static ?string $navigationGroup = 'Tickets';
+    protected static ?string $navigationLabel = 'Tickets Creados';
+    protected static ?string $modelLabel = 'Crear Tickets de Incidente';
+    protected static ?int $navigationSort = 1;
 
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
-                // ==========================================
-                // SECCIÓN 1: INFORMACIÓN GENERAL
-                // ==========================================
-                Forms\Components\Section::make('Información del Turno')
-                    ->description('Datos generales del reporte diario.')
-                    ->icon('heroicon-m-information-circle')
-                    ->columns(3)
-                    ->collapsible()
+                Forms\Components\Section::make('Detalles del Incidente')
+                    ->description('Selecciona el tipo de falla para ver los campos específicos.')
                     ->schema([
-                        Forms\Components\DatePicker::make('fecha')
-                            ->label('Fecha')
-                            ->required()
-                            ->default(now())
-                            ->native(false),
-                        Forms\Components\Select::make('turno')
-                            ->label('Turno')
+                        // 1. SELECCIÓN DE CIUDAD (Automática y Oculta)
+                        Forms\Components\Select::make('ciudad_selector')
+                            ->label('Ciudad / Sede')
                             ->options([
-                                'mañana' => '☀️ Mañana',
-                                'tarde' => '🌤️ Tarde',
-                                'noche' => '🌙 Noche'
+                                'monteria' => 'Montería',
+                                'puerto_libertador' => 'Puerto Libertador',
+                                'regional' => 'Sedes Regionales (Valencia, Tierralta, San Pedro)',
                             ])
-                            ->required()
-                            ->native(false),
-                        Forms\Components\TextInput::make('ciudad')
-                            ->default('Montería')
-                            ->disabled()
-                            ->dehydrated(),
-                    ]),
-
-                // ==========================================
-                // SECCIÓN 2: INFRAESTRUCTURA (Concentradores y Proveedores)
-                // ==========================================
-                Forms\Components\Section::make('Estado de Conectividad')
-                    ->description('Monitoreo de Concentradores y Proveedores de servicio.')
-                    ->icon('heroicon-m-globe-alt')
-                    ->collapsible()
-                    ->schema([
-                        Forms\Components\Grid::make(2)->schema([
-                            // Columna 1: Concentradores
-                            Forms\Components\Repeater::make('lista_concentradores')
-                                ->label('Concentradores')
-                                ->schema([
-                                    Forms\Components\Grid::make(12)->schema([
-                                        Forms\Components\TextInput::make('nombre')->hiddenLabel()->required()->placeholder('Nombre')->columnSpan(4),
-                                        Forms\Components\Toggle::make('estado')->label('Óptimo')->default(true)->onColor('success')->offColor('danger')->inline(false)->columnSpan(2),
-                                        Forms\Components\TextInput::make('detalle')->label('Detalle')->placeholder('Ej: Lentitud...')->columnSpan(6),
-                                    ])
-                                ])
-                                ->default([
-                                    ['nombre' => 'Concentrador 1', 'estado' => true], ['nombre' => 'Concentrador 2', 'estado' => true],
-                                    ['nombre' => 'Concentrador 3', 'estado' => true], ['nombre' => 'Concentrador 4', 'estado' => true],
-                                    ['nombre' => 'Concentrador 5', 'estado' => true], ['nombre' => 'Concentrador 6', 'estado' => true],                                    
-                                    ['nombre' => 'Visión Total', 'estado' => true], ['nombre' => 'Visión Total 28', 'estado' => true],
-                                ])
-                                ->columns(1)
-                                ->collapsible()
-                                ->itemLabel(fn (array $state): ?string => $state['nombre'] ?? null),
-
-                            // Columna 2: Proveedores
-                            Forms\Components\Repeater::make('lista_proveedores')
-                                ->label('Proveedores')
-                                ->schema([
-                                    Forms\Components\Grid::make(12)->schema([
-                                        Forms\Components\TextInput::make('nombre')->hiddenLabel()->required()->placeholder('Nombre')->columnSpan(3),
-                                        Forms\Components\Toggle::make('estado')->label('Enlazado')->default(true)->onColor('success')->offColor('danger')->inline(false)->columnSpan(2),
-                                        Forms\Components\TextInput::make('consumo')->label('Consumo')->placeholder('Ej: 4.2 Gbps')->columnSpan(3),
-                                        Forms\Components\TextInput::make('detalle')->label('Novedad')->placeholder('Ej: Caída...')->columnSpan(4),
-                                    ])
-                                ])
-                                ->default([
-                                    ['nombre' => 'Ufinet', 'estado' => true], ['nombre' => 'Cirion', 'estado' => true], ['nombre' => 'Somos', 'estado' => true],
-                                ])
-                                ->collapsible()
-                                ->itemLabel(fn (array $state): ?string => $state['nombre'] ?? null),
-                        ]),
-                    ]),
-
-                // ==========================================
-                // SECCIÓN 3: OLTs (Lógica Compleja)
-                // ==========================================
-                Forms\Components\Section::make('Estado de OLTs (Sincronizado)')
-                    ->description('Si reportas una falla, el sistema verifica tickets existentes automáticamente.')
-                    ->icon('heroicon-m-server-stack')
-                    ->collapsible()
-                    ->schema([
-                        Forms\Components\Grid::make(2)->schema([
-                            
-                            // --- OLT MAIN ---
-                            Forms\Components\Section::make('OLT Montería (Main)')
-                                ->icon('heroicon-o-cpu-chip')
-                                ->compact() // Diseño más compacto
-                                ->schema([
-                                    Forms\Components\TextInput::make('temp_olt_monteria')
-                                        ->label('Temperatura')
-                                        ->numeric()
-                                        ->placeholder('29')
-                                        ->suffix('°C')
-                                        ->required(),
-                                    
-                                    Forms\Components\Repeater::make('olt_monteria_detalle')
-                                        ->label('Detalle Tarjetas')
-                                        ->defaultItems(0)
-                                        ->addActionLabel('Agregar Tarjeta')
-                                        ->schema([
-                                            Forms\Components\Grid::make(12)->schema([
-                                                Forms\Components\Select::make('tarjeta')
-                                                    ->label('Tarjeta')
-                                                    ->options(array_combine(range(1, 17), range(1, 17)))
-                                                    ->required()
-                                                    ->columnSpan(4)
-                                                    ->live(),
-                                                
-                                                Forms\Components\Toggle::make('estado')
-                                                    ->label('Óptimo')
-                                                    ->default(false)
-                                                    ->onColor('success')->offColor('danger')->inline(false)->columnSpan(3)
-                                                    ->live()
-                                                    ->afterStateUpdated(function (Forms\Get $get, Forms\Set $set, ?string $state) {
-                                                        if ($state === false) {
-                                                            $tarjeta = $get('tarjeta');
-                                                            $puertosForm = array_map('strval', (array)($get('puertos') ?? []));
-                                                            if (!$tarjeta) return;
-
-                                                            $existe = Incident::where('tipo_falla', 'falla_olt')
-                                                                ->where('olt_nombre', 'Main')
-                                                                ->where('estado', '!=', 'resuelto')
-                                                                ->get()
-                                                                ->contains(function ($inc) use ($tarjeta, $puertosForm) {
-                                                                    foreach($inc->olt_afectacion ?? [] as $afec) {
-                                                                        if ((string)($afec['tarjeta'] ?? '') === (string)$tarjeta) {
-                                                                            $puertosInc = array_map('strval', (array)($afec['puertos'] ?? []));
-                                                                            if (empty($puertosForm) && empty($puertosInc)) return true;
-                                                                            if (count(array_intersect($puertosForm, $puertosInc)) > 0) return true;
-                                                                        }
-                                                                    }
-                                                                    return false;
-                                                                });
-
-                                                            if ($existe) {
-                                                                Notification::make()->title('Ticket Detectado')->body("Ya existe un ticket abierto para estos puertos en Tarjeta {$tarjeta}.")->info()->send();
-                                                                $set('incidente_vinculado', true);
-                                                            } else {
-                                                                $set('incidente_vinculado', false);
-                                                            }
-                                                        }
-                                                    }),
-
-                                                Forms\Components\Select::make('puertos')->label('Puertos')
-                                                    ->multiple()
-                                                    ->options(array_combine(range(1, 16), range(1, 16)))
-                                                    ->placeholder('Selecc.')
-                                                    ->columnSpan(5)
-                                                    ->live()
-                                                    ->afterStateUpdated(function (Forms\Get $get, Forms\Set $set) {
-                                                        if ($get('estado') === false) {
-                                                            $tarjeta = $get('tarjeta');
-                                                            $puertosForm = array_map('strval', (array)($get('puertos') ?? []));
-                                                            if (!$tarjeta) return;
-                                                            
-                                                            $existe = Incident::where('tipo_falla', 'falla_olt')->where('olt_nombre', 'Main')->where('estado', '!=', 'resuelto')->get()
-                                                                ->contains(function ($inc) use ($tarjeta, $puertosForm) {
-                                                                    foreach($inc->olt_afectacion ?? [] as $afec) {
-                                                                        if ((string)($afec['tarjeta'] ?? '') === (string)$tarjeta) {
-                                                                            $puertosInc = array_map('strval', (array)($afec['puertos'] ?? []));
-                                                                            if (empty($puertosForm) && empty($puertosInc)) return true;
-                                                                            if (count(array_intersect($puertosForm, $puertosInc)) > 0) return true;
-                                                                        }
-                                                                    }
-                                                                    return false;
-                                                                });
-                                                            $set('incidente_vinculado', $existe);
-                                                        }
-                                                    }),
-
-                                                Forms\Components\TextInput::make('detalle')->label('Observación')->placeholder('Falla...')->columnSpan(12),
-
-                                                Forms\Components\Hidden::make('responsible_id'),
-
-                                                Forms\Components\Actions::make([
-                                                    Forms\Components\Actions\Action::make('generar_ticket')
-                                                        ->label('Generar Ticket')
-                                                        ->icon('heroicon-m-ticket')
-                                                        ->color('warning')
-                                                        ->form([
-                                                            Forms\Components\Select::make('responsible_id')
-                                                                ->label('Asignar Responsable')
-                                                                ->options(\App\Models\User::all()->pluck('name', 'id'))
-                                                                ->required()
-                                                                ->searchable()
-                                                                ->preload(),
-                                                        ])
-                                                        ->action(function (array $data, Forms\Get $get, Forms\Set $set, $livewire) {
-                                                            $tarjeta = $get('tarjeta');
-                                                            $puertos = $get('puertos') ?? [];
-                                                            $responsibleId = $data['responsible_id'];
-
-                                                            if (!$tarjeta) { Notification::make()->title('Selecciona tarjeta')->danger()->send(); return; }
-
-                                                            if ($livewire instanceof \Filament\Resources\Pages\CreateRecord) {
-                                                                Notification::make()->title('Ticket en Cola')->body('Se creará al guardar.')->success()->send();
-                                                                $set('incidente_vinculado', true);
-                                                                $set('responsible_id', $responsibleId);
-                                                            } else {
-                                                                $reporte = $livewire->record; 
-                                                                $incident = Incident::create([
-                                                                    'report_id' => $reporte->id, 'tipo_falla' => 'falla_olt', 'olt_nombre' => 'Main',
-                                                                    'olt_afectacion' => [['tarjeta' => $tarjeta, 'puertos' => $puertos]],
-                                                                    'barrios' => 'N/A (Auto)', 'estado' => 'pendiente',
-                                                                    'descripcion' => 'Generado manualmente.',
-                                                                    'identificador' => "OLT Main - T{$tarjeta}"
-                                                                ]);
-                                                                
-                                                                $incident->responsibles()->attach($responsibleId, [
-                                                                    'status' => 'pending',
-                                                                    'assigned_by' => auth()->id(),
-                                                                    'assigned_at' => now(),
-                                                                ]);
-
-                                                                Notification::make()->title('Ticket Creado')->success()->send();
-                                                                $set('incidente_vinculado', true);
-                                                            }
-                                                        }),
-                                                ])
-                                                ->visible(function (Forms\Get $get) {
-                                                    if ($get('estado') === true) return false;
-                                                    if ($get('incidente_vinculado')) return false;
-
-                                                    $tarjeta = $get('tarjeta');
-                                                    $puertosForm = array_map('strval', (array)($get('puertos') ?? []));
-
-                                                    if (!$tarjeta) return false;
-
-                                                    $existe = Incident::where('tipo_falla', 'falla_olt')
-                                                        ->where('olt_nombre', 'Main')
-                                                        ->where('estado', '!=', 'resuelto')
-                                                        ->get()
-                                                        ->contains(function ($inc) use ($tarjeta, $puertosForm) {
-                                                            foreach($inc->olt_afectacion ?? [] as $afec) {
-                                                                if ((string)($afec['tarjeta'] ?? '') === (string)$tarjeta) {
-                                                                    $puertosInc = array_map('strval', (array)($afec['puertos'] ?? []));
-                                                                    if (empty($puertosForm) && empty($puertosInc)) return true;
-                                                                    if (count(array_intersect($puertosForm, $puertosInc)) > 0) return true;
-                                                                }
-                                                            }
-                                                            return false;
-                                                        });
-                                                    
-                                                    return !$existe;
-                                                })
-                                                ->columnSpan(12),
-
-                                                Forms\Components\Placeholder::make('aviso_reportado')
-                                                    ->label('')
-                                                    ->content('✅ Ticket de incidente ya existente para estos puertos.')
-                                                    ->visible(function (Forms\Get $get) {
-                                                        if ($get('estado') === true) return false;
-                                                        $tarjeta = $get('tarjeta');
-                                                        $puertosForm = array_map('strval', (array)($get('puertos') ?? []));
-                                                        if (!$tarjeta) return false;
-
-                                                        return Incident::where('tipo_falla', 'falla_olt')
-                                                            ->where('olt_nombre', 'Main')
-                                                            ->where('estado', '!=', 'resuelto')
-                                                            ->get()
-                                                            ->contains(function ($inc) use ($tarjeta, $puertosForm) {
-                                                                foreach($inc->olt_afectacion ?? [] as $afec) {
-                                                                    if ((string)($afec['tarjeta'] ?? '') === (string)$tarjeta) {
-                                                                        $puertosInc = array_map('strval', (array)($afec['puertos'] ?? []));
-                                                                        if (empty($puertosForm) && empty($puertosInc)) return true;
-                                                                        if (count(array_intersect($puertosForm, $puertosInc)) > 0) return true;
-                                                                    }
-                                                                }
-                                                                return false;
-                                                            });
-                                                    })
-                                                    ->extraAttributes(['class' => 'text-green-600 font-bold text-sm bg-green-50 p-2 rounded border border-green-200'])
-                                                    ->columnSpan(12),
-
-                                                Forms\Components\Placeholder::make('aviso_cola')
-                                                    ->label('')
-                                                    ->content('🕒 Ticket programado para creación.')
-                                                    ->visible(fn (Forms\Get $get) => $get('incidente_vinculado') === true && $get('estado') === false)
-                                                    ->extraAttributes(['class' => 'text-blue-600 font-bold text-xs bg-blue-50 p-2 rounded'])
-                                                    ->columnSpan(12),
-
-                                                Forms\Components\Hidden::make('incidente_vinculado')->default(false),
-                                            ])
-                                        ])->collapsed()->itemLabel(fn ($state) => 'Tarjeta ' . ($state['tarjeta'] ?? '?')),
-                                ]),
-
-                            // --- OLT BACKUP ---
-                            Forms\Components\Section::make('OLT Backup')
-                                ->icon('heroicon-o-server')
-                                ->compact()
-                                ->schema([
-                                    Forms\Components\TextInput::make('temp_olt_backup')->label('Temperatura')->numeric()->placeholder('27')->suffix('°C')->required(),
-                                    
-                                    Forms\Components\Repeater::make('olt_backup_detalle')
-                                        ->label('Detalle Tarjetas')
-                                        ->defaultItems(0)
-                                        ->addActionLabel('Agregar Tarjeta')
-                                        ->schema([
-                                            Forms\Components\Grid::make(12)->schema([
-                                                Forms\Components\Select::make('tarjeta')->label('Tarjeta')->options(array_combine(range(1, 17), range(1, 17)))->required()->columnSpan(4)->live(),
-                                                Forms\Components\Toggle::make('estado')->label('Óptimo')->default(false)->onColor('success')->offColor('danger')->inline(false)->columnSpan(3)->live()
-                                                    ->afterStateUpdated(function (Forms\Get $get, Forms\Set $set, ?string $state) {
-                                                        if ($state === false) {
-                                                            $tarjeta = $get('tarjeta');
-                                                            $puertosForm = array_map('strval', (array)($get('puertos') ?? []));
-                                                            if (!$tarjeta) return;
-
-                                                            $existe = Incident::where('tipo_falla', 'falla_olt')
-                                                                ->where('olt_nombre', 'Backup')
-                                                                ->where('estado', '!=', 'resuelto')
-                                                                ->get()
-                                                                ->contains(function ($inc) use ($tarjeta, $puertosForm) {
-                                                                    foreach($inc->olt_afectacion ?? [] as $afec) {
-                                                                        if ((string)($afec['tarjeta'] ?? '') === (string)$tarjeta) {
-                                                                            $puertosInc = array_map('strval', (array)($afec['puertos'] ?? []));
-                                                                            if (empty($puertosForm) && empty($puertosInc)) return true;
-                                                                            if (count(array_intersect($puertosForm, $puertosInc)) > 0) return true;
-                                                                        }
-                                                                    }
-                                                                    return false;
-                                                                });
-
-                                                            if ($existe) {
-                                                                Notification::make()->title('Ticket Detectado')->info()->send();
-                                                                $set('incidente_vinculado', true);
-                                                            } else {
-                                                                $set('incidente_vinculado', false);
-                                                            }
-                                                        }
-                                                    }),
-
-                                                Forms\Components\Select::make('puertos')->label('Puertos')
-                                                    ->multiple()
-                                                    ->options(array_combine(range(1, 16), range(1, 16)))
-                                                    ->placeholder('Selecc.')
-                                                    ->columnSpan(5)
-                                                    ->live()
-                                                    ->afterStateUpdated(function (Forms\Get $get, Forms\Set $set) {
-                                                        if ($get('estado') === false) {
-                                                            $tarjeta = $get('tarjeta');
-                                                            $puertosForm = array_map('strval', (array)($get('puertos') ?? []));
-                                                            if (!$tarjeta) return;
-                                                            
-                                                            $existe = Incident::where('tipo_falla', 'falla_olt')->where('olt_nombre', 'Backup')->where('estado', '!=', 'resuelto')->get()
-                                                                ->contains(function ($inc) use ($tarjeta, $puertosForm) {
-                                                                    foreach($inc->olt_afectacion ?? [] as $afec) {
-                                                                        if ((string)($afec['tarjeta'] ?? '') === (string)$tarjeta) {
-                                                                            $puertosInc = array_map('strval', (array)($afec['puertos'] ?? []));
-                                                                            if (empty($puertosForm) && empty($puertosInc)) return true;
-                                                                            if (count(array_intersect($puertosForm, $puertosInc)) > 0) return true;
-                                                                        }
-                                                                    }
-                                                                    return false;
-                                                                });
-                                                            $set('incidente_vinculado', $existe);
-                                                        }
-                                                    }),
-
-                                                Forms\Components\TextInput::make('detalle')->label('Observación')->placeholder('Falla...')->columnSpan(12),
-                                                
-                                                Forms\Components\Hidden::make('responsible_id'),
-
-                                                Forms\Components\Actions::make([
-                                                    Forms\Components\Actions\Action::make('generar_ticket_backup')
-                                                        ->label('Generar Ticket')
-                                                        ->icon('heroicon-m-ticket')
-                                                        ->color('warning')
-                                                        ->form([
-                                                            Forms\Components\Select::make('responsible_id')
-                                                                ->label('Asignar Responsable')
-                                                                ->options(\App\Models\User::all()->pluck('name', 'id'))
-                                                                ->required()
-                                                                ->searchable()
-                                                                ->preload(),
-                                                        ])
-                                                        ->action(function (array $data, Forms\Get $get, Forms\Set $set, $livewire) {
-                                                            $responsibleId = $data['responsible_id'];
-                                                            if ($livewire instanceof \Filament\Resources\Pages\CreateRecord) {
-                                                                Notification::make()->title('Ticket en Cola')->body('Se creará al guardar.')->success()->send();
-                                                                $set('incidente_vinculado', true);
-                                                                $set('responsible_id', $responsibleId);
-                                                            } else {
-                                                                $tarjeta = $get('tarjeta'); $puertos = $get('puertos') ?? [];
-                                                                $incident = Incident::create([ 'report_id' => $livewire->record->id, 'tipo_falla' => 'falla_olt', 'olt_nombre' => 'Backup', 'olt_afectacion' => [['tarjeta' => $tarjeta, 'puertos' => $puertos]], 'barrios' => 'N/A', 'estado' => 'pendiente', 'descripcion' => 'Auto-generado OLT Backup.', 'identificador' => "OLT Backup - T{$tarjeta}" ]);
-                                                                
-                                                                $incident->responsibles()->attach($responsibleId, [
-                                                                    'status' => 'pending',
-                                                                    'assigned_by' => auth()->id(),
-                                                                    'assigned_at' => now(),
-                                                                ]);
-
-                                                                Notification::make()->title('Ticket Creado')->success()->send();
-                                                                $set('incidente_vinculado', true);
-                                                            }
-                                                        }),
-                                                ])
-                                                ->visible(function (Forms\Get $get) {
-                                                    if ($get('estado') === true) return false;
-                                                    if ($get('incidente_vinculado')) return false;
-                                                    $tarjeta = $get('tarjeta'); $puertosForm = array_map('strval', (array)($get('puertos') ?? []));
-                                                    if (!$tarjeta) return false;
-
-                                                    return !Incident::where('tipo_falla', 'falla_olt')->where('olt_nombre', 'Backup')->where('estado', '!=', 'resuelto')->get()->contains(function ($inc) use ($tarjeta, $puertosForm) {
-                                                        foreach($inc->olt_afectacion ?? [] as $afec) {
-                                                            if ((string)($afec['tarjeta'] ?? '') === (string)$tarjeta) {
-                                                                $puertosInc = array_map('strval', (array)($afec['puertos'] ?? []));
-                                                                if (empty($puertosForm) && empty($puertosInc)) return true;
-                                                                if (count(array_intersect($puertosForm, $puertosInc)) > 0) return true;
-                                                            }
-                                                        }
-                                                        return false;
-                                                    });
-                                                })
-                                                ->columnSpan(12),
-                                                
-                                                Forms\Components\Placeholder::make('aviso_reportado_backup')->label('')->content('✅ Ticket de incidente ya existente para estos puertos.')->visible(fn (Forms\Get $get) => $get('estado') === false && Incident::where('tipo_falla', 'falla_olt')->where('olt_nombre', 'Backup')->where('estado', '!=', 'resuelto')->get()->contains(fn ($inc) => collect($inc->olt_afectacion ?? [])->contains(fn($afec) => ($afec['tarjeta']??null) == $get('tarjeta') && count(array_intersect($get('puertos')??[], $afec['puertos']??[]))>0)))->extraAttributes(['class' => 'text-green-600 font-bold text-sm bg-green-50 p-2 rounded border border-green-200'])->columnSpan(12),
-                                                Forms\Components\Placeholder::make('aviso_cola')->label('')->content('🕒 Ticket programado.')->visible(fn (Forms\Get $get) => $get('incidente_vinculado') === true && $get('estado') === false)->extraAttributes(['class' => 'text-blue-600 font-bold text-xs bg-blue-50 p-2 rounded'])->columnSpan(12),
-                                                Forms\Components\Hidden::make('incidente_vinculado')->default(false),
-                                            ])
-                                        ])->collapsed()->itemLabel(fn ($state) => 'Tarjeta ' . ($state['tarjeta'] ?? '?')),
-                                ]),
-                        ]),
-                    ]),
-
-                // ==========================================
-                // SECCIÓN 4: TELEVISIÓN (Solo TV)
-                // ==========================================
-                Forms\Components\Section::make('Estado de Televisión')
-                    ->description('Monitoreo de grilla de canales.')
-                    ->icon('heroicon-o-tv')
-                    ->collapsible()
-                    ->schema([
-                        Forms\Components\Grid::make(1)->schema([
-                            // Forms\Components\TextInput::make('tv_canales_activos')->label('Canales Activos')->default(90)->required(),
-                            Forms\Components\TextInput::make('tv_canales_total')->label('Total Grilla')->default(92)->readOnly(),
-                        ]),
-                        Forms\Components\TagsInput::make('tv_canales_offline')
-                            ->label('Canales Offline')
-                            ->suggestions(array_keys(CanalesHelper::getLista()))
-                            ->color('danger')
+                            ->default(function () {
+                                $city = auth()->user()->city;
+                                if (in_array($city, ['valencia', 'tierralta', 'san_pedro'])) {
+                                    return 'regional';
+                                }
+                                return $city ?? 'monteria';
+                            })
                             ->live()
-                            ->afterStateUpdated(function (Forms\Get $get, Forms\Set $set, $state) {
-                                if (empty($state)) { 
-                                    $set('tv_ticket_existente', false); 
-                                    $set('tv_canales_pendientes', []);
-                                    return; 
-                                }
-
-                                // 1. Obtener todos los incidentes abiertos de TV
-                                $incidentesAbiertos = Incident::where('tipo_falla', 'falla_tv')
-                                    ->where('estado', '!=', 'resuelto')
-                                    ->get();
-
-                                // 2. Recopilar todos los canales que YA tienen ticket
-                                $canalesConTicket = [];
-                                foreach ($incidentesAbiertos as $inc) {
-                                    $canalesConTicket = array_merge($canalesConTicket, $inc->tv_canales_afectados ?? []);
-                                }
-                                $canalesConTicket = array_unique($canalesConTicket);
-
-                                // 3. Filtrar: Cuáles de los seleccionados son NUEVOS (no tienen ticket)
-                                $canalesNuevos = array_diff($state, $canalesConTicket);
-                                $canalesYaReportados = array_intersect($state, $canalesConTicket);
-
-                                // 4. Guardar los canales pendientes para el nuevo ticket
-                                $set('tv_canales_pendientes', array_values($canalesNuevos));
-
-                                // 5. Lógica de UI
-                                if (empty($canalesNuevos)) {
-                                    // Todos los seleccionados ya tienen ticket -> Bloquear botón
-                                    $set('tv_ticket_existente', true);
-                                    Notification::make()
-                                        ->title('Todos los canales ya tienen ticket')
-                                        ->body('No es necesario generar uno nuevo.')
-                                        ->info()
-                                        ->send();
-                                } else {
-                                    // Hay al menos uno nuevo -> Permitir generar ticket
-                                    $set('tv_ticket_existente', false);
-                                    
-                                    if (count($canalesYaReportados) > 0) {
-                                        Notification::make()
-                                            ->title('Tickets Parciales Detectados')
-                                            ->body('Se generará ticket SOLO para: ' . implode(', ', $canalesNuevos) . '. Los otros ya tienen reporte.')
-                                            ->warning()
-                                            ->persistent()
-                                            ->send();
+                            ->dehydrated(false) 
+                            ->hidden() // Oculto al usuario
+                            ->afterStateHydrated(function (Forms\Components\Select $component, ?Incident $record) {
+                                if ($record) {
+                                    if ($record->report_puerto_libertador_id) {
+                                        $component->state('puerto_libertador');
+                                    } elseif ($record->report_regional_id) {
+                                        $component->state('regional');
+                                    } else {
+                                        $component->state('monteria');
                                     }
+                                } else {
+                                    // Default al crear
+                                    $city = auth()->user()->city;
+                                    if (in_array($city, ['valencia', 'tierralta', 'san_pedro'])) {
+                                        $component->state('regional');
+                                    } else {
+                                        $component->state($city ?? 'monteria');
+                                    }
+                                }
+                            })
+                            ->afterStateUpdated(function (Forms\Set $set, Forms\Get $get) {
+                                self::updateReportIds($set, $get('ciudad_selector'));
+                            }),
+
+                        // 1.1 VINCULACIÓN MONTERÍA (Automática y Oculta)
+                        Forms\Components\Select::make('report_id')
+                            ->label('Vincular al Reporte (Montería)')
+                            ->options(fn () => Report::latest()->take(5)->get()->mapWithKeys(fn ($r) => [$r->id => "Reporte {$r->fecha->format('d/m')} - " . ucfirst($r->turno)]))
+                            ->default(fn () => Report::latest()->first()?->id)
+                            ->required(fn (Forms\Get $get) => $get('ciudad_selector') === 'monteria')
+                            ->hidden() // Oculto
+                            ->selectablePlaceholder(false),
+
+                        // 1.2 VINCULACIÓN PUERTO LIBERTADOR (Automática y Oculta)
+                        Forms\Components\Select::make('report_puerto_libertador_id')
+                            ->label('Vincular al Reporte (Puerto Libertador)')
+                            ->options(fn () => \App\Models\ReportPuertoLibertador::latest()->take(5)->get()->mapWithKeys(fn ($r) => [$r->id => "Reporte {$r->fecha->format('d/m')} - " . ucfirst($r->turno)]))
+                            ->default(fn () => \App\Models\ReportPuertoLibertador::latest()->first()?->id)
+                            ->required(fn (Forms\Get $get) => $get('ciudad_selector') === 'puerto_libertador')
+                            ->hidden() // Oculto
+                            ->selectablePlaceholder(false),
+
+                        // 1.3 VINCULACIÓN REGIONAL (Automática y Oculta)
+                        Forms\Components\Select::make('report_regional_id')
+                            ->label('Vincular al Reporte (Regional)')
+                            ->options(fn () => \App\Models\ReportRegional::latest()->take(5)->get()->mapWithKeys(fn ($r) => [$r->id => "Reporte {$r->fecha->format('d/m')} - " . ucfirst($r->turno)]))
+                            ->default(fn () => \App\Models\ReportRegional::latest()->first()?->id)
+                            ->required(fn (Forms\Get $get) => $get('ciudad_selector') === 'regional')
+                            ->hidden() // Oculto
+                            ->selectablePlaceholder(false),
+
+                        // 2. TIPO DE FALLA
+                        Forms\Components\Select::make('tipo_falla')
+                            ->label('Tipo de Incidente')
+                            ->options(function (Forms\Get $get) {
+                                $city = $get('ciudad_selector');
+                                
+                                if ($city === 'puerto_libertador' || $city === 'regional') {
+                                    return [
+                                        'falla_tv' => '📺 Servidor de TV / Canales',
+                                        'internet_falla_general' => '🌐 Internet Falla General',
+                                        'internet_falla_especifica' => '👤 Internet Falla Usuario Específico',
+                                        'otros' => '📝 Otros (Incidentes Varios)',
+                                    ];
+                                }
+
+                                return [
+                                    'falla_olt' => '📡 Falla en OLT (Múltiples Tarjetas)',
+                                    'falla_tv' => '📺 Servidor de TV / Canales',
+                                    'internet_falla_general' => '🌐 Internet Falla General',
+                                    'internet_falla_especifica' => '👤 Internet Falla Usuario Específico',
+                                    'otros' => '📝 Otros (Incidentes Varios)',
+                                ];
+                            })
+                            ->required()
+                            ->live()
+                            ->afterStateUpdated(function (Forms\Set $set, $state) {
+                                $set('identificador', null);
+                                if ($state === 'internet_falla_especifica') {
+                                    $set('usuarios_afectados', [
+                                        ['nombre' => '', 'cedula' => '', 'barrio' => '', 'ip' => '']
+                                    ]);
+                                } elseif ($state === 'internet_falla_general') {
+                                    $set('usuarios_afectados', array_fill(0, 2, ['nombre' => '', 'cedula' => '', 'barrio' => '', 'ip' => '']));
                                 }
                             }),
 
-                        Forms\Components\Actions::make([
-                            Forms\Components\Actions\Action::make('generar_ticket_tv')
-                                ->label('Generar Ticket TV')
-                                ->icon('heroicon-m-ticket')
-                                ->color('warning')
-                                ->form([
-                                    Forms\Components\Select::make('responsible_id')
-                                        ->label('Asignar Responsable')
-                                        ->options(\App\Models\User::all()->pluck('name', 'id'))
-                                        ->required()
-                                        ->searchable()
-                                        ->preload(),
-                                ])
-                                ->action(function (array $data, Forms\Get $get, Forms\Set $set, $livewire) {
-                                    // Usar la lista filtrada de canales pendientes
-                                    $canalesParaTicket = $get('tv_canales_pendientes');
-                                    $responsibleId = $data['responsible_id'];
-
-                                    if (empty($canalesParaTicket)) { 
-                                        Notification::make()->title('No hay canales nuevos para reportar')->danger()->send(); 
-                                        return; 
-                                    }
-
-                                    if ($livewire instanceof \Filament\Resources\Pages\CreateRecord) {
-                                        Notification::make()->title('Ticket en Cola')->body('Se creará al guardar.')->success()->send();
-                                        $set('tv_ticket_en_cola', true);
-                                        $set('tv_responsible_id', $responsibleId);
-                                    } else {
-                                        $reporte = $livewire->record;
-                                        $incident = Incident::create([ 
-                                            'report_id' => $reporte->id, 
-                                            'tipo_falla' => 'falla_tv', 
-                                            'tv_canales_afectados' => $canalesParaTicket, // Solo los nuevos
-                                            'barrios' => 'General', 
-                                            'estado' => 'pendiente', 
-                                            'descripcion' => 'Falla TV Manual.', 
-                                            'identificador' => 'Falla TV' 
-                                        ]);
-                                        
-                                        $incident->responsibles()->attach($responsibleId, [
-                                            'status' => 'pending',
-                                            'assigned_by' => auth()->id(),
-                                            'assigned_at' => now(),
-                                        ]);
-
-                                        Notification::make()->title('Ticket TV Creado')->success()->send();
-                                        
-                                        // Actualizar estado para bloquear botón si ya no quedan pendientes
-                                        $set('tv_ticket_existente', true); 
-                                        $set('tv_canales_pendientes', []);
-                                    }
-                                }),
-                        ])->visible(fn (Forms\Get $get) => !empty($get('tv_canales_offline')) && !$get('tv_ticket_existente') && !$get('tv_ticket_en_cola')),
-
-                        Forms\Components\Placeholder::make('aviso_tv_existe')->label('')->content('✅ Ticket existente.')->visible(fn (Forms\Get $get) => $get('tv_ticket_existente') === true)->extraAttributes(['class' => 'text-green-600 font-bold text-xs bg-green-50 p-2 rounded']),
-                        Forms\Components\Placeholder::make('aviso_tv_cola')->label('')->content('🕒 Ticket TV programado.')->visible(fn (Forms\Get $get) => $get('tv_ticket_en_cola') === true)->extraAttributes(['class' => 'text-blue-600 font-bold text-xs bg-blue-50 p-2 rounded']),
-                        
-                        Forms\Components\Hidden::make('tv_ticket_existente')->default(false)->dehydrated(false),
-                        Forms\Components\Hidden::make('tv_ticket_en_cola')->default(false)->dehydrated(false),
-                        Forms\Components\Hidden::make('tv_canales_pendientes')->default([])->dehydrated(false),
-                        Forms\Components\Hidden::make('tv_responsible_id'),
-
-                        Forms\Components\Textarea::make('tv_observaciones')->label('Observaciones TV')->rows(2),
-                    ]),
-
-                // ==========================================
-                // SECCIÓN 5: SERVIDORES Y ENERGÍA (NUEVA SECCIÓN SOLICITADA)
-                // ==========================================
-                Forms\Components\Section::make('Estado de Servidores y Planta Eléctrica')
-                    ->description('Monitoreo de servicios críticos y energía.')
-                    ->icon('heroicon-o-bolt')
-                    ->collapsible()
-                    ->schema([
-                        Forms\Components\Repeater::make('lista_servidores')
-                            ->label('Lista de Activos')
+                        // --- ESCENARIO D: INTERNET FALLA GENERAL ---
+                        Forms\Components\Repeater::make('usuarios_afectados')
+                            ->label(fn (Forms\Get $get) => $get('tipo_falla') === 'internet_falla_especifica' ? 'Datos del Usuario' : 'Usuarios Afectados')
                             ->schema([
-                                Forms\Components\Grid::make(12)->schema([
-                                    Forms\Components\TextInput::make('nombre')
-                                        ->hiddenLabel()
-                                        ->required()
-                                        ->readOnly() // Nombres fijos para que no los cambien
-                                        ->columnSpan(4),
-                                    
-                                    Forms\Components\Toggle::make('estado')
-                                        ->label('Operativo')
-                                        ->default(true)
-                                        ->onColor('success')
-                                        ->offColor('danger')
-                                        ->inline(false)
-                                        ->columnSpan(2),
-
-                                    Forms\Components\TextInput::make('detalle')
-                                        ->label('Novedad / Observación')
-                                        ->placeholder('Sin novedad')
-                                        ->columnSpan(6),
-                                ])
+                                Forms\Components\TextInput::make('nombre')->label('Nombre'),
+                                Forms\Components\TextInput::make('cedula')->label('Cédula')->required(),
+                                Forms\Components\TextInput::make('barrio')->label('Barrio'),
+                                Forms\Components\TextInput::make('ip')->label('IP')->ipv4(),
                             ])
-                            ->default([
-                                ['nombre' => 'Servidor Enlace', 'estado' => true, 'detalle' => null],
-                                ['nombre' => 'Servidor Aginet', 'estado' => true, 'detalle' => null],
-                                ['nombre' => 'Servidores de Cámaras', 'estado' => true, 'detalle' => null],
-                                ['nombre' => 'Servidor Zabbix', 'estado' => true, 'detalle' => null],
-                                ['nombre' => 'Máquinas Virtuales', 'estado' => true, 'detalle' => null],
-                                ['nombre' => 'Página Web', 'estado' => true, 'detalle' => null],
-                                ['nombre' => 'Planta Eléctrica', 'estado' => true, 'detalle' => null],
-                                ['nombre' => 'Intalflix', 'estado' => true, 'detalle' => null],
-                            ])
-                            ->addable(false) // No permitir agregar más cosas raras
-                            ->deletable(false) // No permitir borrar los fijos
-                            ->reorderable(false)
-                            ->columns(1),
+                            ->columns(2)
+                            ->defaultItems(fn (Forms\Get $get) => $get('tipo_falla') === 'internet_falla_especifica' ? 1 : 2)
+                            ->maxItems(fn (Forms\Get $get) => $get('tipo_falla') === 'internet_falla_especifica' ? 1 : null)
+                            ->reorderable(fn (Forms\Get $get) => $get('tipo_falla') !== 'internet_falla_especifica')
+                            ->deletable(fn (Forms\Get $get) => $get('tipo_falla') !== 'internet_falla_especifica')
+                            ->addable(fn (Forms\Get $get) => $get('tipo_falla') !== 'internet_falla_especifica')
+                            ->visible(fn (Forms\Get $get) => in_array($get('tipo_falla'), ['internet_falla_general', 'internet_falla_especifica']))
+                            ->required(),
 
-                        // Campo de observaciones generales de servidores (por si acaso)
-                        Forms\Components\Textarea::make('novedades_servidores')
-                            ->label('Observaciones Adicionales de Servidores')
-                            ->placeholder('Ej: Mantenimiento programado para la noche...')
-                            ->rows(2),
-                    ]),
-
-                // ==========================================
-                // SECCIÓN 6: EVIDENCIAS
-                // ==========================================
-                Forms\Components\Section::make('Evidencias')
-                    ->schema([
-                        Forms\Components\FileUpload::make('photos')
-                            ->label('Fotos del Reporte')
-                            ->multiple()
-                            ->image()
-                            ->imageEditor()
-                            ->directory('report-monteria-photos')
-                            ->columnSpanFull(),
-                    ])->collapsible(),
-
-                // ==========================================
-                // SECCIÓN 7: INCIDENTES REPORTADOS
-                // ==========================================
-                Forms\Components\Section::make('Novedades e Incidentes')
-                    ->description('Registro de tickets y fallas generales.')
-                    ->icon('heroicon-m-exclamation-triangle')
-                    ->collapsible()
-                    ->schema([
-                        Forms\Components\Repeater::make('incidents')
-                            ->relationship()
-                            ->label('Listado de Incidentes')
-                            ->defaultItems(0)
-                            ->collapsible()
-                            ->itemLabel(fn (array $state): ?string => $state['identificador'] ?? ($state['tipo_falla'] ?? 'Incidente'))
+                        // --- ESCENARIO A: FALLA OLT (REPEATER) ---
+                        Forms\Components\Group::make()
+                            ->visible(fn (Forms\Get $get) => $get('tipo_falla') === 'falla_olt')
                             ->schema([
-                                Forms\Components\Select::make('tipo_falla')->options([
-                                    'falla_olt' => '📡 Falla en OLT', 'falla_tv' => '📺 Falla TV',/* 'fibra' => '✂️ Fibra',
-                                    'energia' => '⚡ Energía', 
-                                    'equipo_alarmado' => '🚨 Equipo', 
-                                    'mantenimiento' => '🛠️ Mant.', 
-                                    */
-                                ])->required()->live()->afterStateUpdated(fn (Forms\Set $set) => $set('identificador', null))->columnSpanFull(),
-                                
-                                Forms\Components\Group::make()->visible(fn (Forms\Get $get) => $get('tipo_falla') === 'falla_olt')->schema([
-                                    Forms\Components\Grid::make(2)->schema([
-                                        Forms\Components\Select::make('olt_nombre')->options(['Main'=>'Main','Backup'=>'Backup'])->required(),
-                                        Forms\Components\Repeater::make('olt_afectacion')->label('Tarjetas')->schema([
-                                            Forms\Components\Grid::make(2)->schema([
-                                                Forms\Components\Select::make('tarjeta')->options(array_combine(range(1,17), range(1,17)))->required(),
-                                                Forms\Components\Select::make('puertos')->multiple()->options(array_combine(range(1,16), range(1,16)))->required(),
-                                            ])
-                                        ])->columnSpan(2)->grid(1),
+                                Forms\Components\Select::make('olt_nombre')
+                                    ->label('Seleccionar OLT Afectada')
+                                    ->options(['Main' => 'OLT Main', 'Backup' => 'OLT Backup'])
+                                    ->required()
+                                    ->native(false),
+
+                                // Repeater para Tarjetas y Puertos
+                                Forms\Components\Repeater::make('olt_afectacion')
+                                    ->label('Tarjetas y Puertos Afectados')
+                                    ->addActionLabel('Agregar otra Tarjeta')
+                                    ->schema([
+                                        Forms\Components\Grid::make(2)->schema([
+                                            // Selector de Tarjeta (1-17)
+                                            Forms\Components\Select::make('tarjeta')
+                                                ->label('Tarjeta (Slot)')
+                                                ->options(array_combine(range(1, 17), range(1, 17))) 
+                                                ->required()
+                                                ->searchable(),
+
+                                            // Selector de Puertos Múltiples (1-16)
+                                            Forms\Components\Select::make('puertos')
+                                                ->label('Puertos Afectados')
+                                                ->multiple() 
+                                                ->options(array_combine(range(1, 16), range(1, 16)))
+                                                ->required()
+                                                ->searchable()
+                                                ->placeholder('Selecciona puertos...'),
+                                        ])
                                     ])
-                                ]),
-                                Forms\Components\Select::make('tv_canales_afectados')->multiple()->searchable()->options(CanalesHelper::getLista())->visible(fn ($get) => $get('tipo_falla') === 'falla_tv'),
-                                Forms\Components\TextInput::make('identificador')->required()->visible(fn ($get) => !in_array($get('tipo_falla'), ['falla_olt', 'falla_tv']))->distinct()->validationAttribute('Equipo')->hint('No duplicar'),
-                                Forms\Components\TextInput::make('barrios')->required()->columnSpanFull(),
-                                Forms\Components\Grid::make(2)->schema([
-                                    Forms\Components\TextInput::make('usuarios_afectados')->numeric(),
-                                    Forms\Components\Select::make('estado')->options(['pendiente'=>'Pendiente','resuelto'=>'Resuelto'])->default('pendiente')->required(),
-                                ]),
-                                Forms\Components\Textarea::make('descripcion')->rows(2)->columnSpanFull(),
-                            ])->columns(2),
-                        Forms\Components\Textarea::make('observaciones_generales')->label('Observaciones Generales del Turno')->rows(2),
-                    ]),
+                                    ->columns(1)
+                                    ->defaultItems(1)
+                                    ->grid(1),
+                            ]),
+
+                        // --- ESCENARIO B: FALLA TV (LISTA REAL) ---
+                        Forms\Components\Select::make('tv_canales_afectados')
+                            ->label('Seleccionar Canales Afectados')
+                            ->multiple()
+                            ->searchable()
+                            ->options(CanalesHelper::getLista()) // <--- LISTA DEL PDF
+                            ->visible(fn (Forms\Get $get) => $get('tipo_falla') === 'falla_tv')
+                            ->required(),
+
+                        // --- ESCENARIO C: GENÉRICO ---
+                        Forms\Components\TextInput::make('identificador')
+                            ->label('Identificador del Equipo / Sector')
+                            ->placeholder('Ej: Arpón 13-8')
+                            ->required()
+                            ->visible(fn (Forms\Get $get) => !in_array($get('tipo_falla'), [
+                                'falla_olt', 
+                                'falla_tv',
+                                'internet_falla_general',
+                                'internet_falla_especifica',
+                                'otros'
+                            ]))
+                            ->rule(function (Forms\Get $get) {
+                                return Rule::unique('incidents', 'identificador')
+                                    ->where('report_id', $get('report_id'))
+                                    ->where('tipo_falla', $get('tipo_falla'));
+                            }, 'Ya existe un reporte para este equipo.'),
+
+                        // --- CAMPOS COMUNES ---
+                        Forms\Components\Select::make('estado')
+                            ->options(['pendiente' => '🔴 Pendiente', 'en_proceso' => '🟠 En Proceso', 'resuelto' => '✅ Resuelto'])
+                            ->default('pendiente')
+                            ->required()
+                            ->disabled(),
+
+
+                        Forms\Components\Textarea::make('configuracion_especial')
+                            ->label('Configuración Especial')
+                            ->rows(3)
+                            ->columnSpanFull()
+                            ->visible(fn (Forms\Get $get) => $get('tipo_falla') === 'internet_falla_especifica'),
+
+                        Forms\Components\Section::make('Evidencias (Creación)')
+                            ->schema([
+                                Forms\Components\FileUpload::make('photos_creation')
+                                    ->label('Fotos del Incidente')
+                                    ->multiple()
+                                    ->image()
+                                    ->imageEditor()
+                                    ->directory('incident-creation-photos')
+                                    ->columnSpanFull(),
+                            ])->collapsible(),
+
+                        Forms\Components\Section::make('Evidencias de Solución')
+                            ->schema([
+                                Forms\Components\FileUpload::make('photos_resolution')
+                                    ->label('Fotos de la Solución')
+                                    ->multiple()
+                                    ->image()
+                                    ->imageEditor()
+                                    ->directory('incident-resolution-photos')
+                                    ->columnSpanFull()
+                                    ->disabled(), // Solo lectura en la vista general
+                            ])
+                            ->collapsible()
+                            ->visible(fn (?Incident $record) => $record && !empty($record->photos_resolution)),
+
+                        Forms\Components\Textarea::make('descripcion')
+                            ->label('Observaciones Adicionales')
+                            ->rows(3)
+                            ->columnSpanFull(),
+
+                        Forms\Components\Select::make('responsibles')
+                            ->label('Asignar Responsables (Tickets)')
+                            ->relationship('responsibles', 'name')
+                            ->multiple()
+                            ->preload()
+                            ->searchable()
+                            ->required()
+                            ->columnSpanFull(),
+                        
+                        Forms\Components\ViewField::make('timeline')
+                            ->view('filament.components.incident-timeline')
+                            ->viewData([
+                                'record' => $form->getRecord(),
+                            ])
+                            ->hidden(fn (?Incident $record) => $record === null)
+                            ->columnSpanFull(),
+
+                        Forms\Components\Section::make('Chat del Ticket')
+                            ->schema([
+                                Forms\Components\ViewField::make('chat')
+                                    ->view('filament.forms.components.ticket-chat-wrapper')
+                                    ->viewData([
+                                        'incident' => $form->getRecord(),
+                                    ])
+                                    ->hiddenLabel()
+                                    ->columnSpanFull(),
+                            ])
+                            ->visible(fn (?Incident $record) => $record !== null)
+                            ->collapsible(),
+                    ])
             ]);
     }
 
@@ -704,17 +299,247 @@ class ReportResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('fecha')->date('d M Y')->sortable(),
-                Tables\Columns\TextColumn::make('created_at')->label('Hora')->dateTime('h:i A')->sortable()->toggleable(isToggledHiddenByDefault: false),
-                Tables\Columns\TextColumn::make('turno')->badge()->color(fn ($state) => match($state){'mañana'=>'warning','tarde'=>'info',default=>'gray'}),
-                Tables\Columns\TextColumn::make('temp_olt_monteria')->label('OLT Main')->suffix('°C'),
-                Tables\Columns\TextColumn::make('incidents_count')->label('Tickets')->counts('incidents')->badge()->color('danger'),
+                Tables\Columns\TextColumn::make('ticket_number')
+                    ->label('Ticket #')
+                    ->searchable()
+                    ->copyable()
+                    ->weight('bold')
+                    ->color('primary')
+                    ->sortable(),
+
+                Tables\Columns\TextColumn::make('created_at')
+                    ->label('Fecha y Hora')
+                    ->dateTime('d/m/Y h:i A')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: false),
+
+                Tables\Columns\TextColumn::make('ciudad_origen')
+                    ->label('Ciudad / Sede')
+                    ->state(function (Incident $record) {
+                        if ($record->report_puerto_libertador_id) return 'Puerto Libertador';
+                        if ($record->report_regional_id) return 'Regional';
+                        return 'Montería';
+                    })
+                    ->badge()
+                    ->color(fn (string $state): string => match ($state) {
+                        'Puerto Libertador' => 'info',
+                        'Regional' => 'warning',
+                        'Montería' => 'success',
+                        default => 'gray',
+                    })
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        return $query->orderByRaw("CASE 
+                            WHEN report_puerto_libertador_id IS NOT NULL THEN 1 
+                            WHEN report_regional_id IS NOT NULL THEN 2 
+                            ELSE 0 END $direction");
+                    }),
+
+                Tables\Columns\TextColumn::make('identificador_visual')
+                    ->label('Equipo / Incidente')
+                    ->state(function (Incident $record) {
+                        // Lógica Visual para la Tabla
+                        if ($record->tipo_falla === 'falla_olt') {
+                            if (is_array($record->olt_afectacion)) {
+                                $countTarjetas = count($record->olt_afectacion);
+                                return "OLT {$record->olt_nombre} ({$countTarjetas} Tarjetas)";
+                            }
+                            return "OLT {$record->olt_nombre}";
+                        }
+                        if ($record->tipo_falla === 'falla_tv') {
+                            $count = count($record->tv_canales_afectados ?? []);
+                            return "Servidor TV ({$count} canales)";
+                        }
+                        return $record->identificador;
+                    })
+                    ->weight('bold')
+                    ->description(fn (Incident $record) => $record->identificador),
+
+                Tables\Columns\TextColumn::make('responsibles.name')
+                    ->label('Responsables')
+                    ->badge()
+                    ->color('info')
+                    ->limitList(2),
+
+                Tables\Columns\TextColumn::make('tipo_falla')
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                        'falla_olt' => 'OLT',
+                        'falla_tv' => 'TV Server',
+                        'fibra' => 'Fibra',
+                        'falla_mikrotik' => 'Mikrotik',
+                        'falla_enlace' => 'Enlace',
+                        'falla_general' => 'Falla General',
+                        'internet_falla_general' => 'Internet General',
+                        'internet_falla_especifica' => 'Usuario Específico',
+                        default => ucfirst($state),
+                    })
+                    ->badge(),
+
+                
+                Tables\Columns\TextColumn::make('descripcion')
+                    ->label('Detalle')
+                    ->limit(30)
+                    ->tooltip(fn (Incident $record): string => $record->descripcion ?? '')
+                    ->toggleable(isToggledHiddenByDefault: true),
+                
+                Tables\Columns\TextColumn::make('estado')
+                    ->badge()
+                    ->color(fn (string $state): string => match ($state) {
+                        'resuelto' => 'success', 'pendiente' => 'danger', default => 'warning',
+                    }),
             ])
             ->defaultSort('created_at', 'desc')
-            ->actions([Tables\Actions\EditAction::make()])
-            ->bulkActions([Tables\Actions\BulkActionGroup::make([Tables\Actions\DeleteBulkAction::make()])]);
+            ->recordUrl(null)
+            ->filters([
+                Tables\Filters\SelectFilter::make('estado')
+                    ->label('Estado')
+                    ->options([
+                        'pendiente' => 'Pendiente',
+                        'en_proceso' => 'En Proceso',
+                        'resuelto' => 'Resuelto',
+                    ]),
+                Tables\Filters\SelectFilter::make('ciudad')
+                    ->label('Filtrar por Ciudad')
+                    ->options([
+                        'monteria' => 'Montería',
+                        'puerto_libertador' => 'Puerto Libertador',
+                        'regional' => 'Sedes Regionales',
+                    ])
+                    ->query(function (Builder $query, array $data) {
+                        if ($data['value'] === 'monteria') {
+                            return $query->whereNotNull('report_id');
+                        }
+                        if ($data['value'] === 'puerto_libertador') {
+                            return $query->whereNotNull('report_puerto_libertador_id');
+                        }
+                        if ($data['value'] === 'regional') {
+                            return $query->whereNotNull('report_regional_id');
+                        }
+                        return $query;
+                    }),
+            ])
+            ->actions([
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\Action::make('share')
+                        ->label('Compartir')
+                        ->icon('heroicon-o-share')
+                        ->color('info')
+                        ->modalHeading('Compartir Ticket')
+                        ->modalSubmitAction(false)
+                        ->modalCancelActionLabel('Cerrar')
+                        ->form([
+                            Forms\Components\TextInput::make('copy_text')
+                                ->label('Copia este texto:')
+                                ->default(function (Incident $record) {
+                                    $url = \App\Filament\Resources\AssignedIncidentResource::getUrl('view', ['record' => $record]);
+                                    return "Ticket #{$record->ticket_number} - {$url}";
+                                })
+                                ->extraInputAttributes([
+                                    'readonly' => true,
+                                    'class' => 'cursor-pointer',
+                                    'x-on:click' => "
+                                        \$el.select();
+                                        document.execCommand('copy');
+                                        new FilamentNotification().title('Copiado al portapapeles').success().send();
+                                    ",
+                                ])
+                                ->columnSpanFull(),
+                        ]),
+
+                    Tables\Actions\ViewAction::make(),
+                    
+                    Tables\Actions\Action::make('asignar_responsable')
+                        ->label('Asignar')
+                        ->icon('heroicon-o-user-plus')
+                        ->color('primary')
+                        ->visible(fn (Incident $record) => $record->estado === 'pendiente')
+                        ->form([
+                            Forms\Components\Select::make('responsibles')
+                                ->label('Asignar a:')
+                                ->multiple()
+                                ->options(\App\Models\User::all()->pluck('name', 'id'))
+                                ->required(),
+                        ])
+                        ->action(function (Incident $record, array $data) {
+                            // Attach users with pivot data
+                            $record->responsibles()->syncWithPivotValues($data['responsibles'], [
+                                'status' => 'pending',
+                                'assigned_by' => auth()->id(),
+                                'assigned_at' => now(),
+                            ], false); // false = no detach existing, just add/update
+                            
+                            // Enviar Notificaciones a la Base de Datos
+                            foreach ($data['responsibles'] as $userId) {
+                                $user = \App\Models\User::find($userId);
+                                if ($user) {
+                                    \Filament\Notifications\Notification::make()
+                                        ->title('Nuevo Ticket Asignado')
+                                        ->body("Se te ha asignado el ticket #{$record->ticket_number}")
+                                        ->warning()
+                                        ->actions([
+                                            \Filament\Notifications\Actions\Action::make('ver')
+                                                ->button()
+                                                ->url(\Filament\Facades\Filament::getPanel('admin')->getUrl()),
+                                        ])
+                                        ->sendToDatabase($user);
+                                }
+                            }
+
+                            \Filament\Notifications\Notification::make()
+                                ->title('Responsables asignados correctamente')
+                                ->success()
+                                ->send();
+                        })
+                ])
+            ])
+            ->bulkActions([Tables\Actions\BulkActionGroup::make([
+                // Tables\Actions\DeleteBulkAction::make()
+                //     ->visible(fn () => auth()->user()->hasRole('super_admin')),
+            ])]);
     }
-    
-    public static function getPages(): array { return ['index' => Pages\ListReports::route('/'), 'create' => Pages\CreateReport::route('/create'), 'edit' => Pages\EditReport::route('/{record}/edit')]; }
-    public static function getRelations(): array { return []; }
+
+    public static function getRelations(): array
+    {
+        return [
+            // RelationManagers\ResponsiblesRelationManager::class, // Replaced by Timeline
+        ];
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        $query = parent::getEloquentQuery();
+
+        $user = auth()->user();
+
+        if ($user->hasRole('super_admin') || $user->can('view_all_incidents')) {
+            return $query;
+        }
+
+        return $query->where('created_by', $user->id);
+    }
+    public static function getPages(): array
+    {
+        return [
+            'index' => Pages\ListIncidents::route('/'),
+            'create' => Pages\CreateIncident::route('/create'),
+            'view' => Pages\ViewIncident::route('/{record}'),
+        ];
+    }
+
+    protected static function updateReportIds(Forms\Set $set, ?string $city): void
+    {
+        $set('report_id', null);
+        $set('report_puerto_libertador_id', null);
+        $set('report_regional_id', null);
+
+        if ($city === 'monteria') {
+            $latest = Report::latest()->first();
+            if ($latest) $set('report_id', $latest->id);
+        } elseif ($city === 'puerto_libertador') {
+            $latest = \App\Models\ReportPuertoLibertador::latest()->first();
+            if ($latest) $set('report_puerto_libertador_id', $latest->id);
+        } elseif ($city === 'regional') {
+            $latest = \App\Models\ReportRegional::latest()->first();
+            if ($latest) $set('report_regional_id', $latest->id);
+        }
+    }
 }
