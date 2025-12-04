@@ -17,6 +17,10 @@ return [
     'postmark' => [
         'token' => env('POSTMARK_TOKEN'),
     ],
+    'smartolt' => [
+        'api_url' => env('SMARTOLT_API_URL'),
+        'key' => env('SMARTOLT_API_KEY'),
+    ],
 
     'resend' => [
         'key' => env('RESEND_KEY'),

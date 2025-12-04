@@ -205,6 +205,7 @@
             </div>
 
         </div>
+        <livewire:noc-monitor />
 
         <!-- Footer -->
         <footer class="mt-20 text-center text-gray-500 text-sm">
