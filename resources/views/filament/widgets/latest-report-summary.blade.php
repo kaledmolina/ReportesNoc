@@ -147,7 +147,6 @@
                             </div>
                         @empty
                             <div class="flex flex-col items-center justify-center py-12 text-gray-400">
-                                <x-heroicon-o-clipboard class="w-12 h-12 mb-2 opacity-50"/>
                                 <span class="text-sm italic">Sin novedades registradas en ningún ítem.</span>
                             </div>
                         @endforelse
