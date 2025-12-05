@@ -139,8 +139,8 @@ class IncidentResource extends Resource
                         Forms\Components\Repeater::make('usuarios_afectados')
                             ->label(fn (Forms\Get $get) => $get('tipo_falla') === 'internet_falla_especifica' ? 'Datos del Usuario' : 'Usuarios Afectados')
                             ->schema([
-                                Forms\Components\TextInput::make('nombre')->label('Nombre'),
-                                Forms\Components\TextInput::make('cedula')->label('Cédula')->required(),
+                                Forms\Components\TextInput::make('nombre')->label('Nombre')->required(),
+                                Forms\Components\TextInput::make('cedula')->label('Cédula'),
                                 Forms\Components\TextInput::make('barrio')->label('Barrio'),
                                 Forms\Components\TextInput::make('ip')->label('IP')->ipv4(),
                             ])
