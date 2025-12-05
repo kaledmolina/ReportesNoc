@@ -27,8 +27,10 @@ class ActiveTicketsWidget extends BaseWidget
         return $table
             ->query(
                 Incident::query()
-                    ->whereHas('responsibles', function (Builder $query) {
-                        $query->where('user_id', auth()->id());
+                    ->when(!auth()->user()->hasRole('super_admin'), function (Builder $query) {
+                        $query->whereHas('responsibles', function (Builder $query) {
+                            $query->where('user_id', auth()->id());
+                        });
                     })
                     ->where('estado', '!=', 'resuelto')
             )
@@ -112,6 +114,8 @@ class ActiveTicketsWidget extends BaseWidget
                         ->visible(function (Incident $record) {
                             if ($record->estado === 'resuelto') return false;
                             
+                            if (auth()->user()->hasRole('super_admin')) return true;
+
                             $pivot = $record->responsibles()
                                 ->where('user_id', auth()->id())
                                 ->first()
@@ -121,10 +125,21 @@ class ActiveTicketsWidget extends BaseWidget
                         })
                         ->requiresConfirmation()
                         ->action(function (Incident $record) {
-                            $record->responsibles()->updateExistingPivot(auth()->id(), [
-                                'status' => 'accepted',
-                                'accepted_at' => now(),
-                            ]);
+                            // Si es super admin y no está asignado, asignarlo primero
+                            if (auth()->user()->hasRole('super_admin') && !$record->responsibles->contains(auth()->id())) {
+                                $record->responsibles()->attach(auth()->id(), [
+                                    'status' => 'accepted',
+                                    'assigned_by' => auth()->id(),
+                                    'assigned_at' => now(),
+                                    'accepted_at' => now(),
+                                ]);
+                            } else {
+                                $record->responsibles()->updateExistingPivot(auth()->id(), [
+                                    'status' => 'accepted',
+                                    'accepted_at' => now(),
+                                ]);
+                            }
+                            
                             Notification::make()
                                 ->title('Ticket Aceptado')
                                 ->body('Ahora puedes atender o escalar el ticket.')
@@ -138,6 +153,8 @@ class ActiveTicketsWidget extends BaseWidget
                         ->icon('heroicon-m-x-mark')
                         ->color('danger')
                         ->visible(function (Incident $record) {
+                            if (auth()->user()->hasRole('super_admin')) return true;
+
                             $pivot = $record->responsibles()
                                 ->where('user_id', auth()->id())
                                 ->first()
@@ -152,11 +169,25 @@ class ActiveTicketsWidget extends BaseWidget
                                 ->rows(3),
                         ])
                         ->action(function (Incident $record, array $data) {
-                            $record->responsibles()->updateExistingPivot(auth()->id(), [
-                                'status' => 'rejected',
-                                'rejected_at' => now(),
-                                'notes' => $data['notes'],
-                            ]);
+                            if (auth()->user()->hasRole('super_admin') && !$record->responsibles->contains(auth()->id())) {
+                                // Si es super admin, simplemente no hace nada en pivot si no está asignado, 
+                                // pero permitimos la acción para consistencia o forzamos asignación rechazada?
+                                // Mejor solo permitir si está asignado o asignarlo y rechazarlo.
+                                // Por simplicidad, si es super admin lo asignamos y rechazamos.
+                                $record->responsibles()->attach(auth()->id(), [
+                                    'status' => 'rejected',
+                                    'assigned_by' => auth()->id(),
+                                    'assigned_at' => now(),
+                                    'rejected_at' => now(),
+                                    'notes' => $data['notes'],
+                                ]);
+                            } else {
+                                $record->responsibles()->updateExistingPivot(auth()->id(), [
+                                    'status' => 'rejected',
+                                    'rejected_at' => now(),
+                                    'notes' => $data['notes'],
+                                ]);
+                            }
 
                             // Borrar notificación
                             auth()->user()->notifications()
@@ -174,6 +205,7 @@ class ActiveTicketsWidget extends BaseWidget
                         ->color('primary')
                         ->visible(function (Incident $record) {
                             if ($record->estado !== 'pendiente') return false;
+                            if (auth()->user()->hasRole('super_admin')) return true;
 
                             $pivot = $record->responsibles()
                                 ->where('user_id', auth()->id())
@@ -199,6 +231,7 @@ class ActiveTicketsWidget extends BaseWidget
                         ->color('danger')
                         ->visible(function (Incident $record) {
                             if ($record->estado !== 'pendiente') return false;
+                            if (auth()->user()->hasRole('super_admin')) return true;
 
                             $pivot = $record->responsibles()
                                 ->where('user_id', auth()->id())
@@ -218,11 +251,13 @@ class ActiveTicketsWidget extends BaseWidget
                                 ->required(),
                         ])
                         ->action(function (Incident $record, array $data) {
-                            $record->responsibles()->updateExistingPivot(auth()->id(), [
-                                'status' => 'escalated',
-                                'notes' => "Escalado por " . auth()->user()->name . ": " . $data['motivo'],
-                                'escalated_at' => now(),
-                            ]);
+                            if ($record->responsibles->contains(auth()->id())) {
+                                $record->responsibles()->updateExistingPivot(auth()->id(), [
+                                    'status' => 'escalated',
+                                    'notes' => "Escalado por " . auth()->user()->name . ": " . $data['motivo'],
+                                    'escalated_at' => now(),
+                                ]);
+                            }
 
                             $record->responsibles()->attach($data['nuevo_responsable'], [
                                 'status' => 'pending',
@@ -265,6 +300,7 @@ class ActiveTicketsWidget extends BaseWidget
                         ->color('success')
                         ->visible(function (Incident $record) {
                             if ($record->estado !== 'en_proceso') return false;
+                            if (auth()->user()->hasRole('super_admin')) return true;
 
                             $pivot = $record->responsibles()
                                 ->where('user_id', auth()->id())
@@ -292,10 +328,22 @@ class ActiveTicketsWidget extends BaseWidget
                                 'photos_resolution' => $data['photos_resolution'],
                             ]);
 
-                            $record->responsibles()->updateExistingPivot(auth()->id(), [
-                                'notes' => "Resuelto: " . $data['notas_resolucion'],
-                                'resolved_at' => now(),
-                            ]);
+                            if ($record->responsibles->contains(auth()->id())) {
+                                $record->responsibles()->updateExistingPivot(auth()->id(), [
+                                    'notes' => "Resuelto: " . $data['notas_resolucion'],
+                                    'resolved_at' => now(),
+                                ]);
+                            } else {
+                                // Si es super admin y no estaba asignado, lo registramos como resuelto por él
+                                $record->responsibles()->attach(auth()->id(), [
+                                    'status' => 'accepted', // Asumimos aceptado implícitamente
+                                    'assigned_by' => auth()->id(),
+                                    'assigned_at' => now(),
+                                    'accepted_at' => now(),
+                                    'resolved_at' => now(),
+                                    'notes' => "Resuelto (Super Admin): " . $data['notas_resolucion'],
+                                ]);
+                            }
 
                             // Borrar notificación
                             auth()->user()->notifications()
