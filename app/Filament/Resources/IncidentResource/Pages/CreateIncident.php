@@ -10,6 +10,38 @@ class CreateIncident extends CreateRecord
 {
     protected static string $resource = IncidentResource::class;
 
+    protected function mutateFormDataBeforeCreate(array $data): array
+    {
+        $user = auth()->user();
+        $city = $user->city;
+
+        // 1. Resetear todos los IDs de reporte para evitar inconsistencias
+        $data['report_id'] = null;
+        $data['report_puerto_libertador_id'] = null;
+        $data['report_regional_id'] = null;
+
+        // 2. Asignar el ID correcto basado en la ciudad del usuario
+        if ($city === 'puerto_libertador') {
+            $latest = \App\Models\ReportPuertoLibertador::latest()->first();
+            if ($latest) {
+                $data['report_puerto_libertador_id'] = $latest->id;
+            }
+        } elseif (in_array($city, ['valencia', 'tierralta', 'san_pedro'])) {
+            $latest = \App\Models\ReportRegional::latest()->first();
+            if ($latest) {
+                $data['report_regional_id'] = $latest->id;
+            }
+        } else {
+            // Default: Montería (incluye null o cualquier otra ciudad no listada)
+            $latest = \App\Models\Report::latest()->first();
+            if ($latest) {
+                $data['report_id'] = $latest->id;
+            }
+        }
+
+        return $data;
+    }
+
     protected function beforeCreate(): void
     {
         $data = $this->data;
