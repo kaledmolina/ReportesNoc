@@ -451,6 +451,24 @@ class IncidentResource extends Resource
 
                     Tables\Actions\ViewAction::make(),
                     Tables\Actions\EditAction::make(),
+
+                    Tables\Actions\Action::make('reabrir')
+                        ->label('Reabrir Ticket')
+                        ->icon('heroicon-o-arrow-path')
+                        ->color('warning')
+                        ->visible(fn (Incident $record) => $record->estado === 'resuelto' && auth()->user()->hasRole('super_admin'))
+                        ->requiresConfirmation()
+                        ->modalHeading('¿Reabrir este ticket?')
+                        ->modalDescription('El ticket volverá al estado "En Proceso" y los responsables podrán gestionarlo nuevamente.')
+                        ->action(function (Incident $record) {
+                            $record->update(['estado' => 'en_proceso']);
+                            
+                            \Filament\Notifications\Notification::make()
+                                ->title('Ticket Reabierto')
+                                ->body('El ticket ha sido devuelto al estado "En Proceso".')
+                                ->success()
+                                ->send();
+                        }),
                     
                     Tables\Actions\Action::make('asignar_responsable')
                         ->label('Asignar')
