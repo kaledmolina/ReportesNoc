@@ -212,10 +212,11 @@ class IncidentResource extends Resource
                                 'internet_falla_especifica',
                                 'otros'
                             ]))
-                            ->rule(function (Forms\Get $get) {
+                            ->rule(function (Forms\Get $get, ?Incident $record) {
                                 return Rule::unique('incidents', 'identificador')
                                     ->where('report_id', $get('report_id'))
-                                    ->where('tipo_falla', $get('tipo_falla'));
+                                    ->where('tipo_falla', $get('tipo_falla'))
+                                    ->ignore($record?->id);
                             }, 'Ya existe un reporte para este equipo.'),
 
                         // --- CAMPOS COMUNES ---
