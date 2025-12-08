@@ -223,7 +223,7 @@ class IncidentResource extends Resource
                             ->options(['pendiente' => '🔴 Pendiente', 'en_proceso' => '🟠 En Proceso', 'resuelto' => '✅ Resuelto'])
                             ->default('pendiente')
                             ->required()
-                            ->disabled(),
+                            ->disabled(fn () => ! auth()->user()->hasRole('super_admin')),
 
 
                         Forms\Components\Textarea::make('configuracion_especial')
@@ -252,7 +252,7 @@ class IncidentResource extends Resource
                                     ->imageEditor()
                                     ->directory('incident-resolution-photos')
                                     ->columnSpanFull()
-                                    ->disabled(), // Solo lectura en la vista general
+                                    ->disabled(fn () => ! auth()->user()->hasRole('super_admin')), // Solo lectura en la vista general, editable por super admin
                             ])
                             ->collapsible()
                             ->visible(fn (?Incident $record) => $record && !empty($record->photos_resolution)),
@@ -446,6 +446,7 @@ class IncidentResource extends Resource
                         ]),
 
                     Tables\Actions\ViewAction::make(),
+                    Tables\Actions\EditAction::make(),
                     
                     Tables\Actions\Action::make('asignar_responsable')
                         ->label('Asignar')
@@ -522,6 +523,7 @@ class IncidentResource extends Resource
             'index' => Pages\ListIncidents::route('/'),
             'create' => Pages\CreateIncident::route('/create'),
             'view' => Pages\ViewIncident::route('/{record}'),
+            'edit' => Pages\EditIncident::route('/{record}/edit'),
         ];
     }
 
