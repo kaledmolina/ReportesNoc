@@ -48,7 +48,7 @@ class IncidentResource extends Resource
                             })
                             ->live()
                             ->dehydrated(false) 
-                            ->hidden(fn () => ! auth()->user()->hasRole('super_admin')) // Visible solo para super admin
+                            ->hidden() // Oculto al usuario
                             ->afterStateHydrated(function (Forms\Components\Select $component, ?Incident $record) {
                                 if ($record) {
                                     if ($record->report_puerto_libertador_id) {
@@ -79,7 +79,7 @@ class IncidentResource extends Resource
                             ->searchable()
                             ->preload()
                             ->placeholder('Sin Reporte (Opcional)')
-                            ->hidden(fn () => ! auth()->user()->hasRole('super_admin')) // Visible solo para super admin
+                            ->hidden() // Oculto
                             ->selectablePlaceholder(true),
 
                         // 1.2 VINCULACIÓN PUERTO LIBERTADOR (Automática y Oculta)
@@ -89,7 +89,7 @@ class IncidentResource extends Resource
                             ->searchable()
                             ->preload()
                             ->placeholder('Sin Reporte (Opcional)')
-                            ->hidden(fn () => ! auth()->user()->hasRole('super_admin')) // Visible solo para super admin
+                            ->hidden() // Oculto
                             ->selectablePlaceholder(true),
 
                         // 1.3 VINCULACIÓN REGIONAL (Automática y Oculta)
@@ -99,7 +99,7 @@ class IncidentResource extends Resource
                             ->searchable()
                             ->preload()
                             ->placeholder('Sin Reporte (Opcional)')
-                            ->hidden(fn () => ! auth()->user()->hasRole('super_admin')) // Visible solo para super admin
+                            ->hidden() // Oculto
                             ->selectablePlaceholder(true),
 
                         // 2. TIPO DE FALLA
