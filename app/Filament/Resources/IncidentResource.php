@@ -78,9 +78,9 @@ class IncidentResource extends Resource
                             ->getOptionLabelFromRecordUsing(fn ($record) => "Reporte {$record->fecha->format('d/m')} - " . ucfirst($record->turno))
                             ->searchable()
                             ->preload()
-                            ->required(fn (Forms\Get $get) => $get('ciudad_selector') === 'monteria')
+                            ->placeholder('Sin Reporte (Opcional)')
                             ->hidden(fn () => ! auth()->user()->hasRole('super_admin')) // Visible solo para super admin
-                            ->selectablePlaceholder(false),
+                            ->selectablePlaceholder(true),
 
                         // 1.2 VINCULACIÓN PUERTO LIBERTADOR (Automática y Oculta)
                         Forms\Components\Select::make('report_puerto_libertador_id')
@@ -88,9 +88,9 @@ class IncidentResource extends Resource
                             ->getOptionLabelFromRecordUsing(fn ($record) => "Reporte {$record->fecha->format('d/m')} - " . ucfirst($record->turno))
                             ->searchable()
                             ->preload()
-                            ->required(fn (Forms\Get $get) => $get('ciudad_selector') === 'puerto_libertador')
+                            ->placeholder('Sin Reporte (Opcional)')
                             ->hidden(fn () => ! auth()->user()->hasRole('super_admin')) // Visible solo para super admin
-                            ->selectablePlaceholder(false),
+                            ->selectablePlaceholder(true),
 
                         // 1.3 VINCULACIÓN REGIONAL (Automática y Oculta)
                         Forms\Components\Select::make('report_regional_id')
@@ -98,9 +98,9 @@ class IncidentResource extends Resource
                             ->getOptionLabelFromRecordUsing(fn ($record) => "Reporte {$record->fecha->format('d/m')} - " . ucfirst($record->turno))
                             ->searchable()
                             ->preload()
-                            ->required(fn (Forms\Get $get) => $get('ciudad_selector') === 'regional')
+                            ->placeholder('Sin Reporte (Opcional)')
                             ->hidden(fn () => ! auth()->user()->hasRole('super_admin')) // Visible solo para super admin
-                            ->selectablePlaceholder(false),
+                            ->selectablePlaceholder(true),
 
                         // 2. TIPO DE FALLA
                         Forms\Components\Select::make('tipo_falla')
