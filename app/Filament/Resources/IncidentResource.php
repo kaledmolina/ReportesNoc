@@ -74,27 +74,30 @@ class IncidentResource extends Resource
 
                         // 1.1 VINCULACIÓN MONTERÍA (Automática y Oculta)
                         Forms\Components\Select::make('report_id')
-                            ->label('Vincular al Reporte (Montería)')
-                            ->options(fn () => Report::latest()->take(5)->get()->mapWithKeys(fn ($r) => [$r->id => "Reporte {$r->fecha->format('d/m')} - " . ucfirst($r->turno)]))
-                            ->default(fn () => Report::latest()->first()?->id)
+                            ->relationship('report', 'id', fn ($query) => $query->latest())
+                            ->getOptionLabelFromRecordUsing(fn ($record) => "Reporte {$record->fecha->format('d/m')} - " . ucfirst($record->turno))
+                            ->searchable()
+                            ->preload()
                             ->required(fn (Forms\Get $get) => $get('ciudad_selector') === 'monteria')
                             ->hidden(fn () => ! auth()->user()->hasRole('super_admin')) // Visible solo para super admin
                             ->selectablePlaceholder(false),
 
                         // 1.2 VINCULACIÓN PUERTO LIBERTADOR (Automática y Oculta)
                         Forms\Components\Select::make('report_puerto_libertador_id')
-                            ->label('Vincular al Reporte (Puerto Libertador)')
-                            ->options(fn () => \App\Models\ReportPuertoLibertador::latest()->take(5)->get()->mapWithKeys(fn ($r) => [$r->id => "Reporte {$r->fecha->format('d/m')} - " . ucfirst($r->turno)]))
-                            ->default(fn () => \App\Models\ReportPuertoLibertador::latest()->first()?->id)
+                            ->relationship('reportPuertoLibertador', 'id', fn ($query) => $query->latest())
+                            ->getOptionLabelFromRecordUsing(fn ($record) => "Reporte {$record->fecha->format('d/m')} - " . ucfirst($record->turno))
+                            ->searchable()
+                            ->preload()
                             ->required(fn (Forms\Get $get) => $get('ciudad_selector') === 'puerto_libertador')
                             ->hidden(fn () => ! auth()->user()->hasRole('super_admin')) // Visible solo para super admin
                             ->selectablePlaceholder(false),
 
                         // 1.3 VINCULACIÓN REGIONAL (Automática y Oculta)
                         Forms\Components\Select::make('report_regional_id')
-                            ->label('Vincular al Reporte (Regional)')
-                            ->options(fn () => \App\Models\ReportRegional::latest()->take(5)->get()->mapWithKeys(fn ($r) => [$r->id => "Reporte {$r->fecha->format('d/m')} - " . ucfirst($r->turno)]))
-                            ->default(fn () => \App\Models\ReportRegional::latest()->first()?->id)
+                            ->relationship('reportRegional', 'id', fn ($query) => $query->latest())
+                            ->getOptionLabelFromRecordUsing(fn ($record) => "Reporte {$record->fecha->format('d/m')} - " . ucfirst($record->turno))
+                            ->searchable()
+                            ->preload()
                             ->required(fn (Forms\Get $get) => $get('ciudad_selector') === 'regional')
                             ->hidden(fn () => ! auth()->user()->hasRole('super_admin')) // Visible solo para super admin
                             ->selectablePlaceholder(false),
