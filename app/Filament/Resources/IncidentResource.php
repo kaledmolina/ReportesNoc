@@ -108,6 +108,17 @@ class IncidentResource extends Resource
                             ->options(function (Forms\Get $get) {
                                 $city = $get('ciudad_selector');
                                 
+                                // Lógica para Rol Clientes
+                                if (auth()->user()->hasRole('clientes')) {
+                                    return [
+                                        'degradacion' => 'Degradación',
+                                        'consulta_administrativa' => 'Consulta administrativa',
+                                        'caida_total' => 'Caída total',
+                                        'configurado' => 'Configurado',
+                                        'apoyo_remoto' => 'Apoyo remoto',
+                                    ];
+                                }
+
                                 if ($city === 'puerto_libertador' || $city === 'regional') {
                                     return [
                                         'falla_tv' => '📺 Servidor de TV / Canales',
@@ -213,7 +224,13 @@ class IncidentResource extends Resource
                                 'falla_tv',
                                 'internet_falla_general',
                                 'internet_falla_especifica',
-                                'otros'
+                                'otros',
+                                // Tipos de cliente
+                                'degradacion',
+                                'consulta_administrativa',
+                                'caida_total',
+                                'configurado',
+                                'apoyo_remoto',
                             ]))
                             ->rule(function (Forms\Get $get, ?Incident $record) {
                                 return Rule::unique('incidents', 'identificador')
@@ -262,7 +279,7 @@ class IncidentResource extends Resource
                             ->visible(fn (?Incident $record) => $record && !empty($record->photos_resolution)),
 
                         Forms\Components\Textarea::make('descripcion')
-                            ->label('Observaciones Adicionales')
+                            ->label(fn (Forms\Get $get) => in_array($get('tipo_falla'), ['degradacion', 'consulta_administrativa', 'caida_total', 'configurado', 'apoyo_remoto', 'otros']) ? 'Descripción de la incidencia' : 'Observaciones Adicionales')
                             ->rows(3)
                             ->columnSpanFull(),
 
