@@ -57,6 +57,15 @@ class UserResource extends Resource
                     ->preload()
                     ->searchable()
                     ->label('Áreas (Roles)'),
+
+                Forms\Components\Select::make('allowedAssignees')
+                    ->label('Usuarios permitidos para asignar (Tickets)')
+                    ->relationship('allowedAssignees', 'name')
+                    ->multiple()
+                    ->preload()
+                    ->searchable()
+                    ->helperText('Si se deja vacío, podrá asignar a todos los usuarios.')
+                    ->columnSpanFull(),
             ]);
     }
 

@@ -268,7 +268,14 @@ class IncidentResource extends Resource
 
                         Forms\Components\Select::make('responsibles')
                             ->label('Asignar Responsables (Tickets)')
-                            ->relationship('responsibles', 'name')
+                            ->relationship('responsibles', 'name', modifyQueryUsing: function (Builder $query) {
+                                $user = auth()->user();
+                                // Si el usuario tiene asignados específicos, filtramos
+                                // Importante: usar pluck('users.id') o simplemente verificar la relación
+                                if ($user && $user->allowedAssignees()->count() > 0) {
+                                    $query->whereIn('users.id', $user->allowedAssignees()->pluck('users.id'));
+                                }
+                            })
                             ->multiple()
                             ->preload()
                             ->searchable()

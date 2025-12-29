@@ -59,6 +59,11 @@ class User extends Authenticatable implements FilamentUser
             ->withTimestamps();
     }
 
+    public function allowedAssignees(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'user_allowed_assignees', 'user_id', 'allowed_assignee_id');
+    }
+
     // 3. AGREGA ESTA FUNCIÓN AL FINAL (OBLIGATORIO PARA ENTRAR):
     public function canAccessPanel(Panel $panel): bool
     {
